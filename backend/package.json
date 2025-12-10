@@ -7,7 +7,7 @@
     "dev": "nodemon src/server.mongodb.ts",
     "dev:memory": "nodemon src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node dist/server.mongodb.js",
     "init:db": "ts-node src/scripts/init-db.ts",
     "seed": "ts-node src/scripts/seed.ts",
     "seed:categories": "ts-node src/scripts/seedCategories.ts",
