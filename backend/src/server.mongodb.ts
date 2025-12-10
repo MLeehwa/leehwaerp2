@@ -1,4 +1,5 @@
 import express from 'express';
+import path from 'path';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
@@ -123,6 +124,36 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/setup', setupRoutes);
 
 console.log('✅ 모든 라우트 등록 완료');
+
+// -------------------------------------------------------------------------
+// [Unified Deployment] 프론트엔드 정적 파일 서빙 설정
+// -------------------------------------------------------------------------
+
+// 1. API 404 처리 (API 요청인데 없는 주소면 JSON 에러 리턴)
+app.use('/api/*', (req, res) => {
+  res.status(404).json({
+    status: 'error',
+    message: 'API 엔드포인트를 찾을 수 없습니다.',
+    path: req.originalUrl
+  });
+});
+
+// 2. 프론트엔드 빌드 결과물 서빙 (Vercel/Render 환경 대응)
+// 일반적 구조: backend/dist/server.js 에서 실행되므로, ../../frontend/dist 가 프론트엔드 위치
+const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
+
+// 정적 파일 미들웨어 (이미지, JS, CSS 등)
+app.use(express.static(frontendBuildPath));
+
+// 3. SPA Fallback (그 외 모든 요청은 index.html로 보내서 React가 라우팅 처리하게 함)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(frontendBuildPath, 'index.html'), (err) => {
+    if (err) {
+      // 프론트엔드 빌드가 아직 안 되었거나 경로가 틀린 경우
+      res.status(500).send('Server Error: Frontend build not found.');
+    }
+  });
+});
 
 // 공통 에러 핸들러 (모든 라우트 이후에 등록)
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
