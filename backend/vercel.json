@@ -5,7 +5,14 @@
             "src": "src/server.mongodb.ts",
             "use": "@vercel/node",
             "config": {
-                "includeFiles": ["public/**"]
+                "includeFiles": [
+                    "public/**"
+                ]
+            },
+            "config": {
+                "includeFiles": [
+                    "public/**"
+                ]
             }
         }
     ],

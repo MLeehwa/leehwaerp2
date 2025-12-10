@@ -138,9 +138,10 @@ app.use('/api/*', (req, res) => {
   });
 });
 
-// 2. 프론트엔드 빌드 결과물 서빙 (Vercel/Render 환경 대응)
-// 일반적 구조: backend/dist/server.js 에서 실행되므로, ../../frontend/dist 가 프론트엔드 위치
-const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
+// 2. 프론트엔드 빌드 결과물 서빙 (Monolithic Deployment)
+// backend/public 폴더에 미리 빌드된 프론트엔드 파일이 있다고 가정합니다.
+// Vercel 환경에서는 process.cwd()가 프로젝트 루트(backend 폴더)를 가리킵니다.
+const frontendBuildPath = path.join(process.cwd(), 'public');
 
 // 정적 파일 미들웨어 (이미지, JS, CSS 등)
 app.use(express.static(frontendBuildPath));
@@ -150,7 +151,7 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(frontendBuildPath, 'index.html'), (err) => {
     if (err) {
       // 프론트엔드 빌드가 아직 안 되었거나 경로가 틀린 경우
-      res.status(500).send('Server Error: Frontend build not found.');
+      res.status(500).send(`Server Error: Frontend build not found. Searched at: ${frontendBuildPath}`);
     }
   });
 });
