@@ -1,0 +1,17 @@
+// containers.ts 파일의 377-380 라인 사이에 다음 코드를 추가해야 합니다:
+// 
+// 현재:
+//     if (!buffer) {
+//       return res.status(400).json({ message: '파일 버퍼를 읽을 수 없습니다' });\n    }
+//     const sheetName = workbook.SheetNames[0];  // <-- workbook이 정의되지 않음
+//
+// 수정:
+//     if (!buffer) {
+//       return res.status(400).json({ message: '파일 버퍼를 읽을 수 없습니다' });\n    }
+//     
+//     const workbook = XLSX.read(buffer, { type: 'buffer' });  // <-- 이 줄 추가
+//     const sheetName = workbook.SheetNames[0];
+
+// 파일 경로: c:\Users\LHA-M\erp-system\backend\src\routes\containers.ts
+// 라인 378 다음에 추가:
+const workbook = XLSX.read(buffer, { type: 'buffer' });

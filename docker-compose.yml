@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: erp-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: erp2024! # 임시 비밀번호 (나중에 변경 가능)
+      MONGO_INITDB_DATABASE: erp-system
+    volumes:
+      # 데이터 영구 저장 (NAS 경로에 맞게 수정하세요)
+      # 옵션 1: 상대 경로 사용 (프로젝트 폴더 내) - 기본값
+      # - ./data/mongodb:/data/db
+      # 옵션 2: UGREEN NAS 절대 경로 사용
+      - /share/erp-mongodb:/data/db
+      # 옵션 3: Synology NAS 경로
+      # - /volume1/docker/erp-mongodb:/data/db
+      # 옵션 4: QNAP NAS 경로
+      # - /share/Container/erp-mongodb:/data/db
+      # 초기화 스크립트 (선택사항)
+      # - ./docker/mongo-init:/docker-entrypoint-initdb.d
+    networks:
+      - erp-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # NAS 성능 최적화 (메모리 제한)
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+
+  # MongoDB Express (웹 기반 관리 도구, 선택사항)
+  mongo-express:
+    image: mongo-express:latest
+    container_name: erp-mongo-express
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
+      ME_CONFIG_MONGODB_ADMINPASSWORD: erp2024! # 위와 동일
+      ME_CONFIG_MONGODB_URL: mongodb://admin:erp2024!@mongodb:27017/
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: admin123
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - erp-network
+
+networks:
+  erp-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+    driver: local

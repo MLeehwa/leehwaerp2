@@ -1,0 +1,33 @@
+{
+  "name": "erp-system",
+  "version": "1.0.0",
+  "description": "ERP System - Enterprise Resource Planning",
+  "main": "index.js",
+  "scripts": {
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "dev": "node scripts/start-dev.js",
+    "start": "node scripts/start-dev.js",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "cd backend && npm run build && cd ../frontend && npm run build",
+    "init:db": "cd backend && npm run init:db",
+    "seed": "cd backend && npm run seed",
+    "seed:categories": "cd backend && npm run seed:categories",
+    "check:db": "cd backend && npm run check:db",
+    "status": "node scripts/check-status.js"
+  },
+  "keywords": [
+    "erp",
+    "enterprise",
+    "management"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "openai": "^6.10.0"
+  }
+}
