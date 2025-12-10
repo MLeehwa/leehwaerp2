@@ -8,11 +8,6 @@
                 "includeFiles": [
                     "public/**"
                 ]
-            },
-            "config": {
-                "includeFiles": [
-                    "public/**"
-                ]
             }
         }
     ],
