@@ -153,7 +153,7 @@ app.get('*', (req, res) => {
       // 프론트엔드 빌드가 아직 안 되었거나 경로가 틀린 경우
       let debugInfo = '';
       try {
-        const fs = await import('fs');
+        const fs = require('fs');
         const rootFiles = fs.readdirSync(process.cwd());
         debugInfo = `Root Files (${process.cwd()}): [${rootFiles.join(', ')}]`;
         if (rootFiles.includes('public')) {
