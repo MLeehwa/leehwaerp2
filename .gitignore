@@ -12,6 +12,7 @@ yarn.lock
 dist/
 # backend/public is allowed for monolithic deployment
 !backend/public/
+!frontend/dist/
 build/
 *.log
 
