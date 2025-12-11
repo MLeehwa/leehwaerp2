@@ -5,71 +5,56 @@ dotenv.config();
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://admin:your_secure_password_here@localhost:27017/erp-system?authSource=admin';
 
-let isConnected = false;
+// MongoDB 연결 상태 캐싱 (Serverless 환경 대응)
+// 전역 변수로 연결 상태를 유지하여 Hot Reload/Lambda 재사용 시 연결 재사용
+let cachedClient: typeof mongoose | null = null;
+let cachedPromise: Promise<typeof mongoose> | null = null;
 
-export const connectDB = async (): Promise<void> => {
-  if (isConnected && mongoose.connection.readyState === 1) {
-    console.log('MongoDB는 이미 연결되어 있습니다.');
-    return;
+export const connectDB = async (): Promise<boolean> => {
+  if (cachedClient && mongoose.connection.readyState === 1) {
+    // console.log('✅ MongoDB 연결 재사용');
+    return true;
+  }
+
+  if (cachedPromise) {
+    // 이미 연결 시도 중이면 그 Promise를 반환 (동시 요청 처리)
+    await cachedPromise;
+    return true;
   }
 
   try {
     const options: mongoose.ConnectOptions = {
       // MongoDB 7.0+ 호환성
-      serverSelectionTimeoutMS: 2000, // 더 짧은 타임아웃
-      socketTimeoutMS: 2000,
-      connectTimeoutMS: 2000,
+      serverSelectionTimeoutMS: 15000,
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 15000,
+      bufferCommands: false, // 연결되지 않았을 때 버퍼링하지 않고 즉시 에러 발생 (Serverless에서 중요)
     };
 
-    await mongoose.connect(MONGODB_URI, options);
+    console.log('🔄 MongoDB 새로운 연결 시도...');
+    cachedPromise = mongoose.connect(MONGODB_URI, options);
 
+    cachedClient = await cachedPromise;
     isConnected = true;
+
     console.log('✅ MongoDB 연결 성공');
     console.log(`   데이터베이스: ${mongoose.connection.db?.databaseName}`);
-    console.log(`   호스트: ${mongoose.connection.host}`);
 
-    // 연결 이벤트 리스너
     mongoose.connection.on('error', (err) => {
       console.error('MongoDB 연결 오류:', err);
       isConnected = false;
+      cachedClient = null;
+      cachedPromise = null;
     });
 
-    mongoose.connection.on('disconnected', () => {
-      console.log('⚠️  MongoDB 연결이 끊어졌습니다.');
-      isConnected = false;
-      // 자동 재연결 시도 (5초 후)
-      setTimeout(() => {
-        if (!isConnected) {
-          console.log('🔄 MongoDB 재연결 시도 중...');
-          connectDB().catch(() => {
-            console.log('❌ 재연결 실패. MongoDB가 실행 중인지 확인하세요.');
-          });
-        }
-      }, 5000);
-    });
-
-    mongoose.connection.on('reconnected', () => {
-      console.log('✅ MongoDB 재연결 성공');
-      isConnected = true;
-    });
+    return true;
 
   } catch (error: any) {
     console.error('❌ MongoDB 연결 실패:', error.message);
-    console.error('💡 MongoDB 연결 정보를 확인하세요:');
-    console.error(`   URI: ${MONGODB_URI.replace(/:[^:@]+@/, ':****@')}`);
-    console.error('💡 MongoDB가 실행 중인지 확인: npm run check:db');
-    console.error('⚠️  서버는 계속 실행되지만 데이터베이스 기능은 사용할 수 없습니다.');
+    cachedPromise = null;
+    cachedClient = null;
     isConnected = false;
-    // 연결 실패해도 서버는 계속 실행 (나중에 재연결 시도 가능)
-    // 10초 후 재연결 시도
-    setTimeout(() => {
-      if (!isConnected) {
-        console.log('🔄 MongoDB 재연결 시도 중...');
-        connectDB().catch(() => {
-          // 재연결 실패는 조용히 처리 (무한 재시도 방지)
-        });
-      }
-    }, 10000);
+    return false;
   }
 };
 
