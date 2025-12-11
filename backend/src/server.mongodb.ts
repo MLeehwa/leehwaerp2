@@ -139,42 +139,39 @@ app.use('/api/*', (req, res) => {
 });
 
 // 2. 프론트엔드 빌드 결과물 서빙 (Monolithic Deployment)
-// backend/public 폴더에 미리 빌드된 프론트엔드 파일이 있다고 가정합니다.
-// Vercel 환경에서는 process.cwd()가 프로젝트 루트(backend 폴더)를 가리킵니다.
-const frontendBuildPath = path.join(process.cwd(), 'public');
+// [Root Deployment] 가능한 모든 경로 검색 (Smart Search)
+const fs = require('fs');
+const searchPaths = [
+  path.join(__dirname, '../../frontend/dist'), // 1. Standard Monorepo (backend/src/server.ts -> backend/src -> backend -> root -> frontend -> dist)
+  path.join(__dirname, '../public'),           // 2. Local Backup
+  path.join(process.cwd(), 'frontend/dist'),   // 3. Root CWD (vercel root)
+  path.join(process.cwd(), 'backend/public'),  // 4. Root CWD Backup
+  path.join(process.cwd(), 'public')           // 5. Fallback
+];
+
+// 유효한 경로 찾기
+const frontendBuildPath = searchPaths.find(p => fs.existsSync(p)) || path.join(process.cwd(), 'public');
+console.log(`📂 Frontend Build Path Resolved: ${frontendBuildPath}`);
 
 // 정적 파일 미들웨어 (이미지, JS, CSS 등)
 app.use(express.static(frontendBuildPath));
 
 // 3. SPA Fallback (그 외 모든 요청은 index.html로 보내서 React가 라우팅 처리하게 함)
 app.get('*', (req, res) => {
-  const fs = require('fs');
-  const path = require('path'); // Ensure path is available
+  res.sendFile(path.join(frontendBuildPath, 'index.html'), (err) => {
+    if (err) {
+      // 디버깅 정보
+      const debugInfo = searchPaths.map(p => `${p} (${fs.existsSync(p) ? 'O' : 'X'})`).join('<br>');
+      const rootFiles = fs.readdirSync(process.cwd()).join(', ');
 
-  // [Root Deployment] 가능한 모든 경로 검색
-  const searchPaths = [
-    path.join(__dirname, '../../frontend/dist'), // 1. Standard Monorepo
-    path.join(__dirname, '../public'),           // 2. Local Backup
-    path.join(process.cwd(), 'frontend/dist'),   // 3. Root CWD
-    path.join(process.cwd(), 'backend/public')   // 4. Root CWD Backup
-  ];
-
-  const validPath = searchPaths.find(p => fs.existsSync(p));
-
-  if (validPath) {
-    res.sendFile(path.join(validPath, 'index.html'));
-  } else {
-    // 디버깅 정보
-    const debugInfo = searchPaths.map(p => `${p} (${fs.existsSync(p) ? 'O' : 'X'})`).join('<br>');
-    const rootFiles = fs.readdirSync(process.cwd()).join(', ');
-
-    res.status(500).send(`
-      <h1>Deployment Error (Root Mode)</h1>
-      <p>Could not find frontend assets.</p>
-      <p><b>Searched Locations:</b><br>${debugInfo}</p>
-      <p><b>Current Root Files:</b> ${rootFiles}</p>
-    `);
-  }
+      res.status(500).send(`
+        <h1>Deployment Error (Root Mode)</h1>
+        <p>Could not find frontend assets at: ${frontendBuildPath}</p>
+        <p><b>Searched Locations:</b><br>${debugInfo}</p>
+        <p><b>Current Root Files:</b> ${rootFiles}</p>
+      `);
+    }
+  });
 });
 
 // 공통 에러 핸들러 (모든 라우트 이후에 등록)
