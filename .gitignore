@@ -8,7 +8,10 @@ yarn.lock
 .env.*.local
 
 # Build outputs
+# Build outputs
 dist/
+# backend/public is allowed for monolithic deployment
+!backend/public/
 build/
 *.log
 

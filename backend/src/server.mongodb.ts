@@ -148,23 +148,33 @@ app.use(express.static(frontendBuildPath));
 
 // 3. SPA Fallback (그 외 모든 요청은 index.html로 보내서 React가 라우팅 처리하게 함)
 app.get('*', (req, res) => {
-  res.sendFile(path.join(frontendBuildPath, 'index.html'), (err) => {
-    if (err) {
-      // 프론트엔드 빌드가 아직 안 되었거나 경로가 틀린 경우
-      let debugInfo = '';
-      try {
-        const fs = require('fs');
-        const rootFiles = fs.readdirSync(process.cwd());
-        debugInfo = `Root Files (${process.cwd()}): [${rootFiles.join(', ')}]`;
-        if (rootFiles.includes('public')) {
-          const publicFiles = fs.readdirSync(path.join(process.cwd(), 'public'));
-          debugInfo += ` | Public Files: [${publicFiles.join(', ')}]`;
-        }
-      } catch (e: any) { debugInfo = `List Error: ${e.message}`; }
+  const fs = require('fs');
+  const path = require('path'); // Ensure path is available
 
-      res.status(500).send(`Server Error: Frontend build not found. Searched at: ${frontendBuildPath}. Debug: ${debugInfo}`);
-    }
-  });
+  // [Root Deployment] 가능한 모든 경로 검색
+  const searchPaths = [
+    path.join(__dirname, '../../frontend/dist'), // 1. Standard Monorepo
+    path.join(__dirname, '../public'),           // 2. Local Backup
+    path.join(process.cwd(), 'frontend/dist'),   // 3. Root CWD
+    path.join(process.cwd(), 'backend/public')   // 4. Root CWD Backup
+  ];
+
+  const validPath = searchPaths.find(p => fs.existsSync(p));
+
+  if (validPath) {
+    res.sendFile(path.join(validPath, 'index.html'));
+  } else {
+    // 디버깅 정보
+    const debugInfo = searchPaths.map(p => `${p} (${fs.existsSync(p) ? 'O' : 'X'})`).join('<br>');
+    const rootFiles = fs.readdirSync(process.cwd()).join(', ');
+
+    res.status(500).send(`
+      <h1>Deployment Error (Root Mode)</h1>
+      <p>Could not find frontend assets.</p>
+      <p><b>Searched Locations:</b><br>${debugInfo}</p>
+      <p><b>Current Root Files:</b> ${rootFiles}</p>
+    `);
+  }
 });
 
 // 공통 에러 핸들러 (모든 라우트 이후에 등록)
