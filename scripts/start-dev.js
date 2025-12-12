@@ -34,11 +34,20 @@ process.on('SIGTERM', cleanup);
 function checkBackend() {
   return new Promise((resolve) => {
     const req = http.get(`${BACKEND_URL}/api/health`, (res) => {
-      resolve(res.statusCode === 200);
+      if (res.statusCode === 200) {
+        resolve(true);
+      } else {
+        // console.log(`Health check failed with status: ${res.statusCode}`);
+        resolve(false);
+      }
     });
-    req.on('error', () => resolve(false));
-    req.setTimeout(1000, () => {
+    req.on('error', (err) => {
+      // console.log(`Health check connection error: ${err.message}`);
+      resolve(false);
+    });
+    req.setTimeout(3000, () => {
       req.destroy();
+      // console.log('Health check timed out');
       resolve(false);
     });
   });
@@ -48,7 +57,7 @@ function checkBackend() {
 function startBackend() {
   console.log('🚀 백엔드 서버 시작 중...');
   const backendPath = path.join(__dirname, '..', 'backend');
-  
+
   backendProcess = spawn('npm', ['run', 'dev'], {
     cwd: backendPath,
     stdio: 'inherit',
@@ -72,7 +81,7 @@ function startBackend() {
 function startFrontend() {
   console.log('🚀 프론트엔드 서버 시작 중...');
   const frontendPath = path.join(__dirname, '..', 'frontend');
-  
+
   frontendProcess = spawn('npm', ['run', 'dev'], {
     cwd: frontendPath,
     stdio: 'inherit',
@@ -110,7 +119,7 @@ async function waitForBackend(required = false) {
       console.log('✅ 백엔드 서버가 준비되었습니다!');
       return true;
     }
-    
+
     if (i < MAX_WAIT_ATTEMPTS - 1) {
       process.stdout.write(`\r   시도 ${i + 1}/${MAX_WAIT_ATTEMPTS}...`);
       await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));

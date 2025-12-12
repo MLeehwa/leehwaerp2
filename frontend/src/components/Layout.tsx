@@ -307,7 +307,7 @@ const Layout = () => {
 
     // 프로젝트 코드에 따라 중분류 메뉴 추가
     const code = projectCode.toUpperCase()
-    
+
     if (code.includes('TM')) {
       baseMenus.push(
         {
@@ -322,7 +322,7 @@ const Layout = () => {
         }
       )
     }
-    
+
     if (code.includes('BSA')) {
       baseMenus.push({
         key: `/operation/projects/${projectId}/bsa`,
@@ -330,7 +330,7 @@ const Layout = () => {
         label: 'BSA',
       })
     }
-    
+
     if (code.includes('MOBIS') && code.includes('CKD')) {
       baseMenus.push({
         key: `/operation/projects/${projectId}/mobis-ckd`,
@@ -345,14 +345,14 @@ const Layout = () => {
   // Operation 드롭다운 메뉴 (프로젝트별 서브메뉴 + Maintenance)
   const operationMenuItems: MenuProps['items'] = useMemo(() => {
     const items: MenuProps['items'] = []
-    
+
     // 월마감자료 공통 메뉴 추가
     items.push({
       key: '/operation/source-data',
       icon: <FolderOutlined />,
       label: '월마감자료',
     })
-    
+
     if (operationProjects.length === 0) {
       items.push({
         key: 'no-projects',
@@ -364,7 +364,7 @@ const Layout = () => {
       operationProjects.forEach((project) => {
         const code = project.projectCode?.toUpperCase() || ''
         const subMenus = getProjectSubMenus(project.projectCode, project._id)
-        
+
         // VW CKD 프로젝트는 바로 VW CKD 페이지로 이동 (서브메뉴 없음)
         if (code.includes('VW') && code.includes('CKD')) {
           items.push({
@@ -390,12 +390,12 @@ const Layout = () => {
         }
       })
     }
-    
+
     // 구분선 추가
     items.push({
       type: 'divider',
     })
-    
+
     // Maintenance 메뉴 추가
     items.push({
       key: '/operation/maintenance/equipment',
@@ -412,7 +412,7 @@ const Layout = () => {
       icon: <FileTextOutlined />,
       label: '리포트',
     })
-    
+
     return items
   }, [operationProjects])
 
@@ -664,8 +664,8 @@ const Layout = () => {
     navigate(key)
   }
 
-  const handleTabEdit = (targetKey: string, action: 'add' | 'remove') => {
-    if (action === 'remove') {
+  const handleTabEdit = (targetKey: React.MouseEvent | React.KeyboardEvent | string, action: 'add' | 'remove') => {
+    if (action === 'remove' && typeof targetKey === 'string') {
       removeTab(targetKey)
       // 탭을 닫은 후 활성 탭으로 이동
       const remainingTabs = tabs.filter((tab) => tab.key !== targetKey)
@@ -722,7 +722,7 @@ const Layout = () => {
     // allowedMenus에 포함되어 있으면 접근 가능
     return user.allowedMenus.includes(menuPath)
   }
-  
+
   // 프로젝트별 운영 페이지인 경우 프로젝트 정보 가져오기
   useEffect(() => {
     const projectMatch = location.pathname.match(/^\/operation\/projects\/([^/]+)/)
@@ -773,7 +773,7 @@ const Layout = () => {
             },
           })
           const data = response.data || []
-          
+
           // 임박/지난 항목만 필터링
           const now = new Date()
           const threeDaysLater = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
@@ -782,7 +782,7 @@ const Layout = () => {
             const dueDate = new Date(notif.dueDate)
             return dueDate <= threeDaysLater
           })
-          
+
           if (filtered.length > 0) {
             setNotifications(filtered)
             setCurrentSection('all')
@@ -798,7 +798,7 @@ const Layout = () => {
           }
         }
       }
-      
+
       // 약간의 지연 후 알림 확인 (페이지 로드 완료 후)
       setTimeout(() => {
         checkInitialNotifications()
@@ -819,7 +819,7 @@ const Layout = () => {
           },
         })
         const data = response.data || []
-        
+
         // 임박/지난 항목만 필터링
         const now = new Date()
         const threeDaysLater = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
@@ -828,7 +828,7 @@ const Layout = () => {
           const dueDate = new Date(notif.dueDate)
           return dueDate <= threeDaysLater
         })
-        
+
         setUnreadNotificationCount(filtered.length)
       } catch (error: any) {
         // MongoDB 연결 오류인 경우 조용히 처리
@@ -884,21 +884,21 @@ const Layout = () => {
 
   return (
     <AntLayout style={{ minHeight: '100vh' }}>
-      <Header style={{ 
-        background: '#001529', 
-        padding: '0 24px', 
-        display: 'flex', 
-        justifyContent: 'space-between', 
+      <Header style={{
+        background: '#001529',
+        padding: '0 24px',
+        display: 'flex',
+        justifyContent: 'space-between',
         alignItems: 'center',
         boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
         zIndex: 1000,
         height: '64px',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
-          <div 
-            style={{ 
-              fontSize: '20px', 
-              fontWeight: 'bold', 
+          <div
+            style={{
+              fontSize: '20px',
+              fontWeight: 'bold',
               color: '#fff',
               cursor: 'pointer',
             }}
@@ -912,7 +912,7 @@ const Layout = () => {
                   },
                 })
                 const data = response.data || []
-                
+
                 // 임박/지난 항목만 필터링
                 const now = new Date()
                 const threeDaysLater = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
@@ -921,7 +921,7 @@ const Layout = () => {
                   const dueDate = new Date(notif.dueDate)
                   return dueDate <= threeDaysLater
                 })
-                
+
                 if (filtered.length > 0) {
                   setNotifications(filtered)
                   setCurrentSection('all')
@@ -937,7 +937,7 @@ const Layout = () => {
           >
             LEEHWA
           </div>
-          
+
           {/* 알림 아이콘 */}
           <div
             style={{
@@ -958,7 +958,7 @@ const Layout = () => {
                   },
                 })
                 const data = response.data || []
-                
+
                 // 임박/지난 항목만 필터링
                 const now = new Date()
                 const threeDaysLater = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
@@ -967,7 +967,7 @@ const Layout = () => {
                   const dueDate = new Date(notif.dueDate)
                   return dueDate <= threeDaysLater
                 })
-                
+
                 if (filtered.length > 0) {
                   setNotifications(filtered)
                   setCurrentSection('all')
@@ -1005,7 +1005,7 @@ const Layout = () => {
               </span>
             )}
           </div>
-          
+
           {/* 메뉴 코드 입력 */}
           <Input
             placeholder="메뉴 코드 입력 (예: 0010)"
@@ -1017,7 +1017,7 @@ const Layout = () => {
               }
             }}
             prefix={<SearchOutlined style={{ color: '#999' }} />}
-            style={{ 
+            style={{
               width: 200,
               backgroundColor: 'rgba(255, 255, 255, 0.1)',
               border: '1px solid rgba(255, 255, 255, 0.2)',
@@ -1033,24 +1033,24 @@ const Layout = () => {
               }}
               trigger={['click']}
             >
-            <div
-              style={{
-                color: '#fff',
-                fontSize: '14px',
-                fontWeight: 500,
-                cursor: 'pointer',
-                padding: '8px 12px',
-                borderRadius: '4px',
-                backgroundColor: isHrActive ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              <TeamOutlined style={{ fontSize: '14px' }} />
-              <span>HR</span>
-            </div>
-          </Dropdown>
+              <div
+                style={{
+                  color: '#fff',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  backgroundColor: isHrActive ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <TeamOutlined style={{ fontSize: '14px' }} />
+                <span>HR</span>
+              </div>
+            </Dropdown>
           )}
           {hasMenuAccess('/sales') && (
             <Dropdown
@@ -1060,24 +1060,24 @@ const Layout = () => {
               }}
               trigger={['click']}
             >
-            <div
-              style={{
-                color: '#fff',
-                fontSize: '14px',
-                fontWeight: 500,
-                cursor: 'pointer',
-                padding: '8px 12px',
-                borderRadius: '4px',
-                backgroundColor: isSalesActive ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              <DollarCircleOutlined style={{ fontSize: '14px' }} />
-              <span>Sales</span>
-            </div>
-          </Dropdown>
+              <div
+                style={{
+                  color: '#fff',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  backgroundColor: isSalesActive ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <DollarCircleOutlined style={{ fontSize: '14px' }} />
+                <span>Sales</span>
+              </div>
+            </Dropdown>
           )}
           {hasMenuAccess('/accounting') && (
             <Dropdown
@@ -1087,24 +1087,24 @@ const Layout = () => {
               }}
               trigger={['click']}
             >
-            <div
-              style={{
-                color: '#fff',
-                fontSize: '14px',
-                fontWeight: 500,
-                cursor: 'pointer',
-                padding: '8px 12px',
-                borderRadius: '4px',
-                backgroundColor: isAccountingActive ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              <AccountBookOutlined style={{ fontSize: '14px' }} />
-              <span>Accounting</span>
-            </div>
-          </Dropdown>
+              <div
+                style={{
+                  color: '#fff',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  backgroundColor: isAccountingActive ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <AccountBookOutlined style={{ fontSize: '14px' }} />
+                <span>Accounting</span>
+              </div>
+            </Dropdown>
           )}
           {hasMenuAccess('/purchase') && (
             <Dropdown
@@ -1114,24 +1114,24 @@ const Layout = () => {
               }}
               trigger={['click']}
             >
-            <div
-              style={{
-                color: '#fff',
-                fontSize: '14px',
-                fontWeight: 500,
-                cursor: 'pointer',
-                padding: '8px 12px',
-                borderRadius: '4px',
-                backgroundColor: isPurchaseActive ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              <ShoppingCartOutlined style={{ fontSize: '14px' }} />
-              <span>Purchase</span>
-            </div>
-          </Dropdown>
+              <div
+                style={{
+                  color: '#fff',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  backgroundColor: isPurchaseActive ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <ShoppingCartOutlined style={{ fontSize: '14px' }} />
+                <span>Purchase</span>
+              </div>
+            </Dropdown>
           )}
           {hasMenuAccess('/production') && (
             <Dropdown
@@ -1141,24 +1141,24 @@ const Layout = () => {
               }}
               trigger={['click']}
             >
-            <div
-              style={{
-                color: '#fff',
-                fontSize: '14px',
-                fontWeight: 500,
-                cursor: 'pointer',
-                padding: '8px 12px',
-                borderRadius: '4px',
-                backgroundColor: isProductionActive ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              <ThunderboltOutlined style={{ fontSize: '14px' }} />
-              <span>Production</span>
-            </div>
-          </Dropdown>
+              <div
+                style={{
+                  color: '#fff',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  backgroundColor: isProductionActive ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <ThunderboltOutlined style={{ fontSize: '14px' }} />
+                <span>Production</span>
+              </div>
+            </Dropdown>
           )}
           {hasMenuAccess('/operation') && (
             <Dropdown
@@ -1168,24 +1168,24 @@ const Layout = () => {
               }}
               trigger={['click']}
             >
-            <div
-              style={{
-                color: '#fff',
-                fontSize: '14px',
-                fontWeight: 500,
-                cursor: 'pointer',
-                padding: '8px 12px',
-                borderRadius: '4px',
-                backgroundColor: isOperationActive ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              <SettingOutlined style={{ fontSize: '14px' }} />
-              <span>Operation</span>
-            </div>
-          </Dropdown>
+              <div
+                style={{
+                  color: '#fff',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  backgroundColor: isOperationActive ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <SettingOutlined style={{ fontSize: '14px' }} />
+                <span>Operation</span>
+              </div>
+            </Dropdown>
           )}
           {hasMenuAccess('/quality') && (
             <Dropdown
@@ -1195,24 +1195,24 @@ const Layout = () => {
               }}
               trigger={['click']}
             >
-            <div
-              style={{
-                color: '#fff',
-                fontSize: '14px',
-                fontWeight: 500,
-                cursor: 'pointer',
-                padding: '8px 12px',
-                borderRadius: '4px',
-                backgroundColor: isQualityActive ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              <CheckCircleOutlined style={{ fontSize: '14px' }} />
-              <span>Quality</span>
-            </div>
-          </Dropdown>
+              <div
+                style={{
+                  color: '#fff',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  backgroundColor: isQualityActive ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <CheckCircleOutlined style={{ fontSize: '14px' }} />
+                <span>Quality</span>
+              </div>
+            </Dropdown>
           )}
           {/* 공통 메뉴 - 캘린더 */}
           <Dropdown
@@ -1289,8 +1289,8 @@ const Layout = () => {
         </Space>
       </Header>
       {tabs.length > 0 && (
-        <div style={{ 
-          background: '#fff', 
+        <div style={{
+          background: '#fff',
           padding: '0 24px',
           borderBottom: '1px solid #f0f0f0',
         }}>
@@ -1311,33 +1311,33 @@ const Layout = () => {
       )}
       <AntLayout>
         {/* Operation 사이드바 - 프로젝트별 페이지 또는 Maintenance 페이지일 때 표시 */}
-        {isOperationActive && 
-         (location.pathname.match(/^\/operation\/projects\/([^/]+)/) || location.pathname.startsWith('/operation/maintenance/')) &&
-         !location.pathname.includes('/vw-ckd') && (
-          <Sider 
-            width={250} 
-            style={{ 
-              background: '#fff',
-              borderRight: '1px solid #f0f0f0',
-            }}
-          >
-            <div style={{ 
-              padding: '16px', 
-              borderBottom: '1px solid #f0f0f0',
-            }}>
-              <div style={{ 
-                fontSize: '16px', 
-                fontWeight: 'bold',
+        {isOperationActive &&
+          (location.pathname.match(/^\/operation\/projects\/([^/]+)/) || location.pathname.startsWith('/operation/maintenance/')) &&
+          !location.pathname.includes('/vw-ckd') && (
+            <Sider
+              width={250}
+              style={{
+                background: '#fff',
+                borderRight: '1px solid #f0f0f0',
+              }}
+            >
+              <div style={{
+                padding: '16px',
+                borderBottom: '1px solid #f0f0f0',
               }}>
-                Operation
+                <div style={{
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                }}>
+                  Operation
+                </div>
               </div>
-            </div>
-            <Menu
-              mode="inline"
-              selectedKeys={getSidebarSelectedKeys()}
-              items={
-                location.pathname.startsWith('/operation/maintenance/')
-                  ? [
+              <Menu
+                mode="inline"
+                selectedKeys={getSidebarSelectedKeys()}
+                items={
+                  location.pathname.startsWith('/operation/maintenance/')
+                    ? [
                       {
                         key: '/operation/maintenance/equipment',
                         icon: <ToolOutlined />,
@@ -1354,31 +1354,31 @@ const Layout = () => {
                         label: '리포트',
                       },
                     ]
-                  : operationProject 
-                    ? getProjectSubMenus(operationProject.projectCode, operationProject._id)
-                    : []
-              }
-              onClick={handleSidebarMenuClick}
-              style={{ 
-                borderRight: 'none',
-                height: tabs.length > 0 
-                  ? 'calc(100vh - 64px - 49px - 48px)' 
-                  : 'calc(100vh - 64px - 48px)',
-              }}
-            />
-          </Sider>
-        )}
+                    : operationProject
+                      ? getProjectSubMenus(operationProject.projectCode, operationProject._id)
+                      : []
+                }
+                onClick={handleSidebarMenuClick}
+                style={{
+                  borderRight: 'none',
+                  height: tabs.length > 0
+                    ? 'calc(100vh - 64px - 49px - 48px)'
+                    : 'calc(100vh - 64px - 48px)',
+                }}
+              />
+            </Sider>
+          )}
         {isMasterDataActive && (
-          <Sider 
-            width={250} 
-            style={{ 
+          <Sider
+            width={250}
+            style={{
               background: '#fff',
               borderRight: '1px solid #f0f0f0',
             }}
           >
-            <div style={{ 
-              padding: '16px', 
-              fontSize: '16px', 
+            <div style={{
+              padding: '16px',
+              fontSize: '16px',
               fontWeight: 'bold',
               borderBottom: '1px solid #f0f0f0',
             }}>
@@ -1426,26 +1426,26 @@ const Layout = () => {
                 },
               ]}
               onClick={handleSidebarMenuClick}
-              style={{ 
+              style={{
                 borderRight: 'none',
-                height: tabs.length > 0 
-                  ? 'calc(100vh - 64px - 49px - 48px)' 
+                height: tabs.length > 0
+                  ? 'calc(100vh - 64px - 49px - 48px)'
                   : 'calc(100vh - 64px - 48px)',
               }}
             />
           </Sider>
         )}
         {isHrActive && (
-          <Sider 
-            width={250} 
-            style={{ 
+          <Sider
+            width={250}
+            style={{
               background: '#fff',
               borderRight: '1px solid #f0f0f0',
             }}
           >
-            <div style={{ 
-              padding: '16px', 
-              fontSize: '16px', 
+            <div style={{
+              padding: '16px',
+              fontSize: '16px',
               fontWeight: 'bold',
               borderBottom: '1px solid #f0f0f0',
             }}>
@@ -1456,26 +1456,26 @@ const Layout = () => {
               selectedKeys={getSidebarSelectedKeys()}
               items={hrMenuItems}
               onClick={handleSidebarMenuClick}
-              style={{ 
+              style={{
                 borderRight: 'none',
-                height: tabs.length > 0 
-                  ? 'calc(100vh - 64px - 49px - 48px)' 
+                height: tabs.length > 0
+                  ? 'calc(100vh - 64px - 49px - 48px)'
                   : 'calc(100vh - 64px - 48px)',
               }}
             />
           </Sider>
         )}
         {isSystemAdminActive && (
-          <Sider 
-            width={250} 
-            style={{ 
+          <Sider
+            width={250}
+            style={{
               background: '#fff',
               borderRight: '1px solid #f0f0f0',
             }}
           >
-            <div style={{ 
-              padding: '16px', 
-              fontSize: '16px', 
+            <div style={{
+              padding: '16px',
+              fontSize: '16px',
               fontWeight: 'bold',
               borderBottom: '1px solid #f0f0f0',
             }}>
@@ -1486,26 +1486,26 @@ const Layout = () => {
               selectedKeys={getSidebarSelectedKeys()}
               items={systemAdminMenuItems}
               onClick={handleSidebarMenuClick}
-              style={{ 
+              style={{
                 borderRight: 'none',
-                height: tabs.length > 0 
-                  ? 'calc(100vh - 64px - 49px - 48px)' 
+                height: tabs.length > 0
+                  ? 'calc(100vh - 64px - 49px - 48px)'
                   : 'calc(100vh - 64px - 48px)',
               }}
             />
           </Sider>
         )}
         {isSalesActive && (
-          <Sider 
-            width={250} 
-            style={{ 
+          <Sider
+            width={250}
+            style={{
               background: '#fff',
               borderRight: '1px solid #f0f0f0',
             }}
           >
-            <div style={{ 
-              padding: '16px', 
-              fontSize: '16px', 
+            <div style={{
+              padding: '16px',
+              fontSize: '16px',
               fontWeight: 'bold',
               borderBottom: '1px solid #f0f0f0',
             }}>
@@ -1516,26 +1516,26 @@ const Layout = () => {
               selectedKeys={getSidebarSelectedKeys()}
               items={salesMenuItems}
               onClick={handleSidebarMenuClick}
-              style={{ 
+              style={{
                 borderRight: 'none',
-                height: tabs.length > 0 
-                  ? 'calc(100vh - 64px - 49px - 48px)' 
+                height: tabs.length > 0
+                  ? 'calc(100vh - 64px - 49px - 48px)'
                   : 'calc(100vh - 64px - 48px)',
               }}
             />
           </Sider>
         )}
         {isAccountingActive && (
-          <Sider 
-            width={250} 
-            style={{ 
+          <Sider
+            width={250}
+            style={{
               background: '#fff',
               borderRight: '1px solid #f0f0f0',
             }}
           >
-            <div style={{ 
-              padding: '16px', 
-              fontSize: '16px', 
+            <div style={{
+              padding: '16px',
+              fontSize: '16px',
               fontWeight: 'bold',
               borderBottom: '1px solid #f0f0f0',
             }}>
@@ -1546,25 +1546,25 @@ const Layout = () => {
               selectedKeys={getSidebarSelectedKeys()}
               items={accountingMenuItems}
               onClick={handleSidebarMenuClick}
-              style={{ 
+              style={{
                 borderRight: 'none',
-                height: tabs.length > 0 
-                  ? 'calc(100vh - 64px - 49px - 48px)' 
+                height: tabs.length > 0
+                  ? 'calc(100vh - 64px - 49px - 48px)'
                   : 'calc(100vh - 64px - 48px)',
               }}
             />
           </Sider>
         )}
-        <Content style={{ 
-          margin: '24px', 
-          background: '#fff', 
-          padding: 0, 
+        <Content style={{
+          margin: '24px',
+          background: '#fff',
+          padding: 0,
           minHeight: 'calc(100vh - 64px)',
           borderRadius: '8px',
           boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
         }}>
           {/* 알림 배너 (상단 노란색 영역) */}
-          <NotificationBanner 
+          <NotificationBanner
             currentPath={location.pathname}
             onNotificationClick={(notifications) => {
               setNotifications(notifications)
@@ -1572,7 +1572,7 @@ const Layout = () => {
               setNotificationModalVisible(true)
             }}
           />
-          
+
           <div style={{ padding: '24px' }}>
             <Outlet />
           </div>
@@ -1614,18 +1614,17 @@ const Layout = () => {
             dataSource={notifications}
             renderItem={(notification: any) => {
               const isOverdue = notification.dueDate && new Date(notification.dueDate) < new Date()
-              const isDueSoon = notification.dueDate && 
+              const isDueSoon = notification.dueDate &&
                 new Date(notification.dueDate) <= new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) &&
                 new Date(notification.dueDate) > new Date()
 
               return (
                 <List.Item
                   style={{
-                    borderLeft: `4px solid ${
-                      notification.priority === 'urgent' ? '#ff4d4f' :
-                      notification.priority === 'high' ? '#ff7875' :
-                      notification.priority === 'medium' ? '#ffa940' : '#95de64'
-                    }`,
+                    borderLeft: `4px solid ${notification.priority === 'urgent' ? '#ff4d4f' :
+                        notification.priority === 'high' ? '#ff7875' :
+                          notification.priority === 'medium' ? '#ffa940' : '#95de64'
+                      }`,
                     padding: '12px',
                     marginBottom: '8px',
                     backgroundColor: isOverdue ? '#fff1f0' : isDueSoon ? '#fff7e6' : '#fafafa',
@@ -1637,8 +1636,8 @@ const Layout = () => {
                         <span style={{ fontWeight: 500 }}>{notification.title}</span>
                         <Tag color={
                           notification.type === 'error' ? 'red' :
-                          notification.type === 'warning' ? 'orange' :
-                          notification.type === 'success' ? 'green' : 'blue'
+                            notification.type === 'warning' ? 'orange' :
+                              notification.type === 'success' ? 'green' : 'blue'
                         }>
                           {notification.type}
                         </Tag>

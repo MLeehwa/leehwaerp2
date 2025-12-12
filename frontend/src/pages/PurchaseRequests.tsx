@@ -64,6 +64,9 @@ interface PurchaseRequest {
     lastName?: string
   }
   rejectionReason?: string
+  department?: string
+  requiredDate?: string
+  estimatedDeliveryDate?: string
   convertedToPO?: string
 }
 
@@ -94,7 +97,11 @@ interface Location {
   _id: string
   code: string
   name: string
-  companyId: string
+  company: {
+    _id: string
+    code: string
+    name: string
+  }
 }
 
 interface Company {
@@ -124,15 +131,16 @@ const PurchaseRequests = () => {
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const [approveAction, setApproveAction] = useState<'approve' | 'reject'>('approve')
   const [modelNoOptionsMap, setModelNoOptionsMap] = useState<Record<number, Array<{ value: string; label: string; item: any }>>>({})
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
   const [form] = Form.useForm()
   const [approveForm] = Form.useForm()
   const [convertForm] = Form.useForm()
-  
+
   // 필터 상태
   const [filterStatus, setFilterStatus] = useState<string | undefined>(undefined)
   const [filterLocationId, setFilterLocationId] = useState<string | undefined>(undefined)
   const [filterDateRange, setFilterDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null)
-  
+
   // 권한 확인
   const canApprove = user?.role === 'admin' || user?.role === 'manager'
 
@@ -159,7 +167,7 @@ const PurchaseRequests = () => {
         params.startDate = filterDateRange[0].startOf('day').toISOString()
         params.endDate = filterDateRange[1].endOf('day').toISOString()
       }
-      
+
       const response = await api.get('/purchase-requests', { params })
       // company 필드를 companyId로 매핑
       const mappedData = response.data.map((pr: any) => ({
@@ -221,6 +229,7 @@ const PurchaseRequests = () => {
 
   const handleAdd = () => {
     setEditingPR(null)
+    setSelectedCompanyId(null)
     form.resetFields()
     form.setFieldsValue({ priority: 'medium', items: [{}] })
     setFileList([])
@@ -232,25 +241,28 @@ const PurchaseRequests = () => {
       // 상세 정보 가져오기
       const response = await api.get(`/purchase-requests/${pr._id}`)
       const prData = response.data
-      
+
       setEditingPR(prData)
       form.resetFields()
-      
+
       // 폼 데이터 설정
       const formValues: any = {
         companyId: prData.companyId || prData.company,
         locationId: prData.locationId,
         supplier: prData.supplier,
+        department: prData.department,
         priority: prData.priority || 'medium',
         requiredDate: prData.requiredDate ? dayjs(prData.requiredDate) : undefined,
+        estimatedDeliveryDate: prData.estimatedDeliveryDate ? dayjs(prData.estimatedDeliveryDate) : undefined,
         reason: prData.reason,
         notes: prData.notes,
         websiteUrl: prData.websiteUrl,
         items: prData.items && prData.items.length > 0 ? prData.items : [{}],
         projectId: prData.projectId || prData.project,
       }
-      
+
       form.setFieldsValue(formValues)
+      setSelectedCompanyId(formValues.companyId)
       setFileList([])
       setModalVisible(true)
     } catch (error: any) {
@@ -280,11 +292,14 @@ const PurchaseRequests = () => {
     return false // 자동 업로드 방지
   }
 
-  const handleSubmit = async (values: any) => {
+  const savePR = async (values: any): Promise<PurchaseRequest | null> => {
     try {
       // 날짜 변환 (dayjs 객체를 ISO string으로)
       if (values.requiredDate) {
         values.requiredDate = values.requiredDate.toDate().toISOString()
+      }
+      if (values.estimatedDeliveryDate) {
+        values.estimatedDeliveryDate = values.estimatedDeliveryDate.toDate().toISOString()
       }
 
       // items 처리
@@ -306,52 +321,95 @@ const PurchaseRequests = () => {
         name: file.name,
         size: file.size,
         type: file.type,
-        // 실제 파일은 나중에 별도 업로드 API로 처리하거나, base64로 인코딩할 수 있음
       }))
 
-      // companyId를 company로 매핑
-      // shippingAddressId 제거 (로케이션이 배송지 역할)
       const requestData: any = {
         ...values,
         items,
         attachments: attachments.length > 0 ? attachments : undefined,
+        status: (!editingPR || editingPR.status === 'draft') ? 'submitted' : undefined,
       }
-      // companyId를 company로 매핑
+
       if (values.companyId) {
         requestData.company = values.companyId
         delete requestData.companyId
       }
-      // shippingAddressId 제거
       if (requestData.shippingAddressId) {
         delete requestData.shippingAddressId
       }
-      // projectId를 project로 매핑
       if (values.projectId) {
         requestData.project = values.projectId
         delete requestData.projectId
       }
-      // approver 제거 (불필요)
       if (requestData.approver) {
         delete requestData.approver
       }
 
+      let savedPR;
       if (editingPR) {
-        // 수정
-        await api.put(`/purchase-requests/${editingPR._id}`, requestData)
+        const res = await api.put(`/purchase-requests/${editingPR._id}`, requestData)
+        savedPR = res.data;
         message.success('구매요청이 수정되었습니다')
       } else {
-        // 생성
-        await api.post('/purchase-requests', requestData)
+        const res = await api.post('/purchase-requests', requestData)
+        savedPR = res.data;
         message.success('구매요청이 생성되었습니다')
       }
-      
+      return savedPR;
+    } catch (error: any) {
+      message.error(error.response?.data?.message || (editingPR ? '구매요청 수정에 실패했습니다' : '구매요청 생성에 실패했습니다'))
+      return null;
+    }
+  }
+
+  const handleSubmit = async (values: any) => {
+    const savedPR = await savePR(values);
+    if (savedPR) {
       setModalVisible(false)
       setEditingPR(null)
       form.resetFields()
       setFileList([])
       fetchRequests()
-    } catch (error: any) {
-      message.error(error.response?.data?.message || (editingPR ? '구매요청 수정에 실패했습니다' : '구매요청 생성에 실패했습니다'))
+    }
+  }
+
+  const handleSaveAndConvert = async () => {
+    try {
+      const values = await form.validateFields();
+      const savedPR: any = await savePR(values);
+
+      if (savedPR) {
+        setModalVisible(false); // PR 모달 닫기
+        setEditingPR(null);
+        form.resetFields();
+        setFileList([]);
+
+        // 새로고침 로직은 나중에 PO 변환 후 한꺼번에 해도 되지만, 일단 목록 갱신
+        fetchRequests();
+
+        // 관리자/매니저 권한이면 자동 승인 처리 시도
+        if (canApprove && savedPR.status !== 'approved' && savedPR.status !== 'converted') {
+          try {
+            await api.post(`/purchase-requests/${savedPR._id}/approve`, {
+              action: 'approve',
+            });
+            savedPR.status = 'approved'; // 상태 업데이트
+            message.success('자동 승인되었습니다.');
+          } catch (e: any) {
+            message.warning('자동 승인에 실패했습니다. 수동으로 승인해주세요.');
+            return; // 승인 실패 시 PO 변환 모달 안 띄움
+          }
+        }
+
+        // PO 변환 모달 열기 (approved 상태여야 함)
+        if (savedPR.status === 'approved') {
+          handleConvertToPO(savedPR);
+        } else {
+          message.warning('승인된 요청만 변환할 수 있습니다.');
+        }
+      }
+    } catch (error) {
+      // Validation error or Save error
     }
   }
 
@@ -395,7 +453,7 @@ const PurchaseRequests = () => {
 
   const handleApproveSubmit = async (values: any) => {
     if (!selectedPR) return
-    
+
     try {
       await api.post(`/purchase-requests/${selectedPR._id}/approve`, {
         action: approveAction,
@@ -425,9 +483,16 @@ const PurchaseRequests = () => {
         categoryCode: item.categoryCode,
       }))
       convertForm.setFieldsValue({
-        items: poItems,
         supplier: pr.supplier,
         paymentTerms: 'Net 30',
+        paymentMethod: undefined, // Default or from pr if available
+        orderDate: dayjs(), // Default to today
+        expectedDeliveryDate: pr.estimatedDeliveryDate ? dayjs(pr.estimatedDeliveryDate) : (pr.requiredDate ? dayjs(pr.requiredDate) : undefined),
+        items: poItems,
+        tax: 0,
+        shippingCost: 0,
+        discount: 0,
+        notes: pr.notes, // Assuming pr might have notes
       })
     }
     setConvertModalVisible(true)
@@ -435,7 +500,7 @@ const PurchaseRequests = () => {
 
   const handleConvertSubmit = async (values: any) => {
     if (!selectedPR) return
-    
+
     try {
       // 날짜 변환
       const requestData: any = {
@@ -489,9 +554,18 @@ const PurchaseRequests = () => {
       title: '상태',
       dataIndex: 'status',
       key: 'status',
-      render: (status: string) => (
-        <Tag color={getStatusColor(status)}>{getStatusText(status)}</Tag>
+      render: (status: string, record: PurchaseRequest) => (
+        <>
+          <Tag color={getStatusColor(status)}>{getStatusText(status)}</Tag>
+          {record.convertedToPO && <Tag color="purple">주문됨</Tag>}
+        </>
       ),
+    },
+    {
+      title: '예상 납기일',
+      dataIndex: 'estimatedDeliveryDate',
+      key: 'estimatedDeliveryDate',
+      render: (date: string) => date ? dayjs(date).format('YYYY-MM-DD') : '-',
     },
     {
       title: '로케이션',
@@ -503,6 +577,12 @@ const PurchaseRequests = () => {
         const location = locations.find(loc => loc._id === record.locationId)
         return location ? `${location.code} - ${location.name}` : '-'
       },
+    },
+    {
+      title: '부서',
+      dataIndex: 'department',
+      key: 'department',
+      render: (text: string) => text || '-',
     },
     {
       title: '발주 법인',
@@ -557,9 +637,9 @@ const PurchaseRequests = () => {
         const isDraft = record.status === 'draft'
         const isSubmitted = record.status === 'submitted'
         const isApproved = record.status === 'approved'
-        const canConvert = isApproved && !record.convertedToPO && canApprove
+        const canConvert = !record.convertedToPO && canApprove
         const isOwner = user?._id && record.requestedByUser && String(user._id) === String(record.requestedByUser._id || record.requestedBy)
-        const canEdit = isDraft && isOwner
+        const canEdit = !record.convertedToPO && (isOwner || user?.role === 'admin')
         const canDelete = isDraft && (isOwner || user?.role === 'admin')
 
         return (
@@ -598,10 +678,11 @@ const PurchaseRequests = () => {
                 </Button>
               </Popconfirm>
             )}
-            {isSubmitted && canApprove && (
+            {canApprove && (isSubmitted || isDraft) && !isApproved && (
               <>
                 <Button
                   type="link"
+                  style={{ color: '#52c41a' }}
                   icon={<CheckOutlined />}
                   onClick={() => handleApprove(record)}
                 >
@@ -620,8 +701,27 @@ const PurchaseRequests = () => {
             {canConvert && (
               <Button
                 type="link"
+                style={{ color: '#52c41a' }}
                 icon={<SwapOutlined />}
-                onClick={() => handleConvertToPO(record)}
+                onClick={async () => {
+                  if (record.status === 'approved') {
+                    handleConvertToPO(record)
+                    return
+                  }
+
+                  try {
+                    await api.post(`/purchase-requests/${record._id}/approve`, {
+                      action: 'approve',
+                    });
+                    message.success('자동 승인되었습니다.');
+
+                    const updatedPR = { ...record, status: 'approved' } as PurchaseRequest;
+                    handleConvertToPO(updatedPR);
+                    fetchRequests();
+                  } catch (e) {
+                    message.warning('자동 승인에 실패했습니다. 승인 후 변환해주세요.');
+                  }
+                }}
               >
                 PO 변환
               </Button>
@@ -653,7 +753,7 @@ const PurchaseRequests = () => {
             <FilterOutlined />
             <span style={{ fontWeight: 500 }}>필터:</span>
           </div>
-          
+
           <Select
             placeholder="상태"
             allowClear
@@ -681,8 +781,8 @@ const PurchaseRequests = () => {
             }
           >
             {locations.map((location) => (
-              <Select.Option 
-                key={location._id} 
+              <Select.Option
+                key={location._id}
                 value={location._id}
                 label={`${location.code} - ${location.name}`}
               >
@@ -730,26 +830,52 @@ const PurchaseRequests = () => {
         width={1400}
         style={{ top: 20 }}
         styles={{ body: { padding: '24px' } }}
+        footer={[
+          <Button key="cancel" onClick={() => {
+            setModalVisible(false)
+            setEditingPR(null)
+            form.resetFields()
+          }}>
+            취소
+          </Button>,
+          <Button key="submit" type="primary" onClick={() => form.submit()}>
+            저장
+          </Button>,
+          canApprove && (
+            <Button
+              key="saveAndConvert"
+              type="primary"
+              style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
+              onClick={handleSaveAndConvert}
+            >
+              저장 후 PO 변환
+            </Button>
+          ),
+        ]}
       >
         <Form form={form} onFinish={handleSubmit} layout="vertical">
           <Row gutter={16}>
             <Col span={8}>
-              <Form.Item 
-                name="companyId" 
+              <Form.Item
+                name="companyId"
                 label="발주 법인"
                 rules={[{ required: true, message: '발주 법인을 선택하세요' }]}
               >
-                <Select 
-                  placeholder="발주 법인을 선택하세요" 
+                <Select
+                  placeholder="발주 법인을 선택하세요"
                   showSearch
                   optionFilterProp="children"
                   filterOption={(input, option) =>
                     (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                   }
+                  onChange={(value) => {
+                    setSelectedCompanyId(value)
+                    form.setFieldsValue({ locationId: undefined })
+                  }}
                 >
                   {companies.map((company) => (
-                    <Select.Option 
-                      key={company._id} 
+                    <Select.Option
+                      key={company._id}
                       value={company._id}
                       label={`${company.code} - ${company.name}`}
                     >
@@ -761,31 +887,55 @@ const PurchaseRequests = () => {
             </Col>
 
             <Col span={8}>
-              <Form.Item 
-                name="locationId" 
+              <Form.Item
+                name="locationId"
                 label="로케이션"
                 rules={[{ required: true, message: '로케이션을 선택하세요' }]}
               >
-                <Select 
-                  placeholder="로케이션을 선택하세요" 
+                <Select
+                  placeholder="로케이션을 선택하세요"
                   showSearch
                   optionFilterProp="children"
                   filterOption={(input, option) =>
                     (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                   }
+                  disabled={!selectedCompanyId}
                 >
-                  {locations.map((location) => (
-                    <Select.Option key={location._id} value={location._id} label={`${location.code} - ${location.name}`}>
-                      {location.code} - {location.name}
-                    </Select.Option>
-                  ))}
+                  {locations
+                    .filter((location) => !selectedCompanyId || (location.company && location.company._id === selectedCompanyId))
+                    .map((location) => (
+                      <Select.Option key={location._id} value={location._id} label={`${location.code} - ${location.name}`}>
+                        {location.code} - {location.name}
+                      </Select.Option>
+                    ))}
                 </Select>
               </Form.Item>
             </Col>
 
             <Col span={8}>
-              <Form.Item 
-                name="supplier" 
+              <Form.Item
+                name="department"
+                label="요청 부서"
+                rules={[{ required: true, message: '부서를 선택하세요' }]}
+              >
+                <Select placeholder="부서를 선택하세요" allowClear>
+                  <Select.Option value="Sales">Sales</Select.Option>
+                  <Select.Option value="Production">Production</Select.Option>
+                  <Select.Option value="Quality">Quality</Select.Option>
+                  <Select.Option value="Operation">Operation</Select.Option>
+                  <Select.Option value="Maintenance">Maintenance</Select.Option>
+                  <Select.Option value="Engineering">Application Engineering</Select.Option>
+                  <Select.Option value="HR">HR</Select.Option>
+                  <Select.Option value="Admin">Admin</Select.Option>
+                  <Select.Option value="Finance">Finance</Select.Option>
+                  <Select.Option value="Management">Management</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+
+            <Col span={8}>
+              <Form.Item
+                name="supplier"
                 label="업체 선택"
                 tooltip="기존 업체를 선택하거나 새 업체명을 직접 입력할 수 있습니다. 새로 입력한 업체명도 저장됩니다."
               >
@@ -813,8 +963,8 @@ const PurchaseRequests = () => {
           <Row gutter={16}>
             <Col span={8}>
               <Form.Item name="projectId" label="프로젝트 (선택)">
-                <Select 
-                  placeholder="프로젝트를 선택하세요" 
+                <Select
+                  placeholder="프로젝트를 선택하세요"
                   allowClear
                   showSearch
                   optionFilterProp="children"
@@ -823,8 +973,8 @@ const PurchaseRequests = () => {
                   }
                 >
                   {projects.map((project) => (
-                    <Select.Option 
-                      key={project._id} 
+                    <Select.Option
+                      key={project._id}
                       value={project._id}
                       label={`${project.projectCode} - ${project.projectName}`}
                     >
@@ -876,7 +1026,7 @@ const PurchaseRequests = () => {
                           setModelNoOptionsMap(prev => ({ ...prev, [name]: [] }))
                           return
                         }
-                        
+
                         try {
                           // 선택된 업체 정보 가져오기
                           const selectedSupplier = form.getFieldValue('supplier')
@@ -884,7 +1034,7 @@ const PurchaseRequests = () => {
                           if (selectedSupplier) {
                             params.supplier = selectedSupplier
                           }
-                          
+
                           const response = await api.get('/purchase-requests/search/items', { params })
                           const options = response.data.map((item: any) => ({
                             value: item.modelNo || '',
@@ -985,9 +1135,9 @@ const PurchaseRequests = () => {
                                 rules={[{ required: true, message: '수량' }]}
                                 style={{ marginBottom: 0 }}
                               >
-                                <InputNumber 
-                                  min={1} 
-                                  placeholder="수량" 
+                                <InputNumber
+                                  min={1}
+                                  placeholder="수량"
                                   style={{ width: '100%' }}
                                   onChange={(value) => {
                                     const unitPrice = form.getFieldValue(['items', name, 'unitPrice'])
@@ -1057,9 +1207,9 @@ const PurchaseRequests = () => {
                                 label="스펙"
                                 style={{ marginBottom: 0 }}
                               >
-                                <Input.TextArea 
-                                  rows={2} 
-                                  placeholder="스펙 정보를 입력하세요 (MODEL NO 입력 시 자동으로 불러올 수 있습니다)" 
+                                <Input.TextArea
+                                  rows={2}
+                                  placeholder="스펙 정보를 입력하세요 (MODEL NO 입력 시 자동으로 불러올 수 있습니다)"
                                 />
                               </Form.Item>
                             </Col>
@@ -1079,38 +1229,26 @@ const PurchaseRequests = () => {
           </Form.Item>
 
           <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item 
-                name="websiteUrl" 
-                label="웹사이트 URL (선택)"
-                rules={[
-                  {
-                    type: 'url',
-                    message: '올바른 URL 형식을 입력하세요 (예: https://example.com)',
-                  },
-                ]}
+            <Col span={24}>
+              <Form.Item
+                name="websiteUrl"
+                label="참조 웹사이트 URL (선택)"
               >
-                <div>
-                  <Space.Compact style={{ width: '100%' }}>
-                    <span style={{ 
-                      display: 'inline-flex', 
-                      alignItems: 'center', 
-                      padding: '0 11px', 
-                      background: '#fafafa', 
-                      border: '1px solid #d9d9d9',
-                      borderRight: 'none',
-                      borderRadius: '6px 0 0 6px'
-                    }}>
-                      🌐
-                    </span>
-                    <Input 
-                      placeholder="https://example.com"
-                      style={{ borderRadius: '0 6px 6px 0' }}
-                    />
-                  </Space.Compact>
-                </div>
+                <Input
+                  addonBefore="🌐"
+                  placeholder="https://example.com"
+                  onBlur={(e) => {
+                    const value = e.target.value;
+                    if (value && !/^https?:\/\//i.test(value)) {
+                      form.setFieldsValue({ websiteUrl: `https://${value}` });
+                    }
+                  }}
+                />
               </Form.Item>
-              <div style={{ marginTop: -16, marginBottom: 16, fontSize: 12, color: '#999' }}>
+            </Col>
+
+            <Col span={24}>
+              <div style={{ marginTop: -8, marginBottom: 16, fontSize: 12, color: '#999' }}>
                 제품 또는 서비스 관련 웹사이트 링크를 입력하세요
               </div>
             </Col>
@@ -1186,7 +1324,7 @@ const PurchaseRequests = () => {
           convertForm.resetFields()
         }}
         onOk={() => convertForm.submit()}
-        width={900}
+        width={1200}
       >
         {selectedPR && (
           <div style={{ marginBottom: 16, padding: 12, background: '#f5f5f5', borderRadius: 4 }}>
@@ -1213,135 +1351,261 @@ const PurchaseRequests = () => {
             />
           </Form.Item>
 
-          <Form.Item name="paymentTerms" label="결제 조건" initialValue="Net 30">
-            <Select>
-              <Select.Option value="Net 15">Net 15</Select.Option>
-              <Select.Option value="Net 30">Net 30</Select.Option>
-              <Select.Option value="Net 45">Net 45</Select.Option>
-              <Select.Option value="Net 60">Net 60</Select.Option>
-            </Select>
-          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="orderDate" label="주문일자" initialValue={dayjs()}>
+                <DatePicker style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="expectedDeliveryDate" label="예상 납기일">
+                <DatePicker style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+          </Row>
 
-          <Form.Item name="expectedDeliveryDate" label="예상 납기일">
-            <DatePicker style={{ width: '100%' }} />
-          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="paymentTerms" label="결제 조건" initialValue="Net 30">
+                <Select>
+                  <Select.Option value="Net 15">Net 15</Select.Option>
+                  <Select.Option value="Net 30">Net 30</Select.Option>
+                  <Select.Option value="Net 45">Net 45</Select.Option>
+                  <Select.Option value="Net 60">Net 60</Select.Option>
+                  <Select.Option value="Due on Receipt">Due on Receipt</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="paymentMethod" label="결제 방법">
+                <Select placeholder="결제 방법을 선택하세요">
+                  <Select.Option value="bank_transfer">은행 계좌 이체</Select.Option>
+                  <Select.Option value="credit_card">크레딧 카드</Select.Option>
+                  <Select.Option value="check">수표</Select.Option>
+                  <Select.Option value="cash">현금</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
 
           <Divider>구매 항목 (금액 조정 가능)</Divider>
 
-          <Form.Item
-            label="구매 항목"
-            required
-          >
-            <Form.List name="items">
-              {(fields, { add, remove }) => (
-                <>
-                  {fields.map(({ key, name, ...restField }) => (
-                    <Space key={key} style={{ display: 'flex', marginBottom: 8 }} align="baseline">
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'description']}
-                        rules={[{ required: true, message: '품명을 입력하세요' }]}
-                        style={{ width: 200 }}
-                      >
-                        <Input placeholder="품명" />
-                      </Form.Item>
+          {/* Item List Headers */}
+          <div style={{ display: 'flex', marginBottom: 8, padding: '0 8px', fontWeight: 'bold', color: '#666' }}>
+            <div style={{ flex: 3, paddingRight: 8 }}>품목명 / 설명</div>
+            <div style={{ flex: 3, paddingRight: 8 }}>웹사이트 URL</div>
+            <div style={{ flex: 2, paddingRight: 8 }}>카테고리</div>
+            <div style={{ width: 80, paddingRight: 8 }}>수량</div>
+            <div style={{ width: 120, paddingRight: 8 }}>단가</div>
+            <div style={{ width: 120, paddingRight: 8 }}>총액</div>
+            <div style={{ width: 32 }}></div>
+          </div>
 
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'categoryCode']}
-                        style={{ width: 150 }}
-                      >
-                        <Select placeholder="카테고리" allowClear>
-                          {categories.map((cat) => (
-                            <Select.Option key={cat._id} value={cat.code}>
-                              {cat.code} - {cat.name}
-                            </Select.Option>
-                          ))}
-                        </Select>
-                      </Form.Item>
-
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'quantity']}
-                        rules={[{ required: true, message: '수량을 입력하세요' }]}
-                        style={{ width: 100 }}
-                      >
-                        <InputNumber 
-                          min={1} 
-                          placeholder="수량" 
-                          style={{ width: '100%' }}
-                          onChange={(value) => {
-                            const unitPrice = convertForm.getFieldValue(['items', name, 'unitPrice'])
-                            if (value && unitPrice) {
-                              convertForm.setFieldValue(['items', name, 'total'], value * unitPrice)
-                            }
-                          }}
-                        />
-                      </Form.Item>
-
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'unitPrice']}
-                        style={{ width: 120 }}
-                      >
-                        <InputNumber
-                          min={0}
-                          placeholder="단가"
-                          prefix="$"
-                          style={{ width: '100%' }}
-                          onChange={(value) => {
-                            const quantity = convertForm.getFieldValue(['items', name, 'quantity'])
-                            if (value && quantity) {
-                              convertForm.setFieldValue(['items', name, 'total'], value * quantity)
-                            }
-                          }}
-                        />
-                      </Form.Item>
-
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'total']}
-                        style={{ width: 120 }}
-                      >
-                        <InputNumber
-                          min={0}
-                          placeholder="총액"
-                          prefix="$"
-                          style={{ width: '100%' }}
-                        />
-                      </Form.Item>
-
-                      <Button
-                        type="text"
-                        danger
-                        icon={<MinusCircleOutlined />}
-                        onClick={() => remove(name)}
+          <Form.List name="items">
+            {(fields, { add, remove }) => (
+              <>
+                {fields.map(({ key, name, ...restField }) => (
+                  <div key={key} style={{ display: 'flex', marginBottom: 8 }}>
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'description']}
+                      rules={[{ required: true, message: '품목명을 입력하세요' }]}
+                      style={{ flex: 3, marginRight: 8, marginBottom: 0 }}
+                    >
+                      <Input placeholder="품목명" />
+                    </Form.Item>
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'websiteUrl']}
+                      style={{ flex: 3, marginRight: 8, marginBottom: 0 }}
+                    >
+                      <Input placeholder="웹사이트 URL (선택)" prefix="🌐" />
+                    </Form.Item>
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'categoryCode']}
+                      style={{ flex: 2, marginRight: 8, marginBottom: 0 }}
+                    >
+                      <Select placeholder="카테고리">
+                        {categories.map(c => (
+                          <Select.Option key={c.code} value={c.code}>{c.name}</Select.Option>
+                        ))}
+                      </Select>
+                    </Form.Item>
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'quantity']}
+                      rules={[{ required: true, message: '수량' }]}
+                      style={{ width: 80, marginRight: 8, marginBottom: 0 }}
+                    >
+                      <Input type="number" min={1} placeholder="수량" onChange={(e) => {
+                        const val = Number(e.target.value);
+                        const unitPrice = convertForm.getFieldValue(['items', name, 'unitPrice']);
+                        if (val && unitPrice) {
+                          convertForm.setFieldValue(['items', name, 'total'], val * unitPrice);
+                        }
+                      }} />
+                    </Form.Item>
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'unitPrice']}
+                      style={{ width: 120, marginRight: 8, marginBottom: 0 }}
+                    >
+                      <InputNumber
+                        formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                        parser={value => value!.replace(/\$\s?|(,*)/g, '')}
+                        style={{ width: '100%' }}
+                        min={0}
+                        placeholder="단가"
+                        onChange={(val) => {
+                          const quantity = convertForm.getFieldValue(['items', name, 'quantity']);
+                          if (val && quantity) {
+                            convertForm.setFieldValue(['items', name, 'total'], val * Number(quantity));
+                          }
+                        }}
                       />
-                    </Space>
-                  ))}
-                </>
-              )}
-            </Form.List>
+                    </Form.Item>
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'total']}
+                      style={{ width: 120, marginRight: 8, marginBottom: 0 }}
+                    >
+                      <InputNumber
+                        formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                        parser={value => value!.replace(/\$\s?|(,*)/g, '')}
+                        style={{ width: '100%' }}
+                        min={0}
+                        placeholder="총액"
+                      />
+                    </Form.Item>
+                    <MinusCircleOutlined onClick={() => remove(name)} style={{ marginTop: 8 }} />
+                  </div>
+                ))}
+                <Form.Item>
+                  <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
+                    항목 추가
+                  </Button>
+                </Form.Item>
+              </>
+            )}
+          </Form.List>
+
+          <Divider />
+
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item name="tax" label="세금">
+                <InputNumber
+                  formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                  parser={value => value!.replace(/\$\s?|(,*)/g, '')}
+                  style={{ width: '100%' }}
+                  min={0}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="shippingCost" label="배송비">
+                <InputNumber
+                  formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                  parser={value => value!.replace(/\$\s?|(,*)/g, '')}
+                  style={{ width: '100%' }}
+                  min={0}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="discount" label="할인">
+                <InputNumber
+                  formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                  parser={value => value!.replace(/\$\s?|(,*)/g, '')}
+                  style={{ width: '100%' }}
+                  min={0}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item name="notes" label="비고">
+            <Input.TextArea rows={2} placeholder="추가 메모를 입력하세요 (예: 배송 시 주의사항)" />
           </Form.Item>
+
+          <div style={{ marginTop: 20, padding: 20, background: '#f9f9f9', borderRadius: 8, textAlign: 'right' }}>
+            <Form.Item shouldUpdate>
+              {() => {
+                const items = convertForm.getFieldValue('items') || [];
+                const tax = convertForm.getFieldValue('tax') || 0;
+                const shippingCost = convertForm.getFieldValue('shippingCost') || 0;
+                const discount = convertForm.getFieldValue('discount') || 0;
+
+                const itemsTotal = items.reduce((sum: number, item: any) => sum + (Number(item?.total) || 0), 0);
+                const grandTotal = itemsTotal + Number(tax) + Number(shippingCost) - Number(discount);
+
+                return (
+                  <div style={{ fontSize: 16 }}>
+                    <div style={{ marginBottom: 8 }}>중간 합계: <strong>${itemsTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong></div>
+                    <div style={{ fontSize: 20, color: '#1890ff' }}>
+                      최종 합계: <strong>${grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+                    </div>
+                  </div>
+                );
+              }}
+            </Form.Item>
+          </div>
         </Form>
-      </Modal>
+      </Modal >
 
       {/* 상세 정보 모달 */}
-      <Modal
+      < Modal
         title="구매요청 상세"
         open={detailModalVisible}
         onCancel={() => {
           setDetailModalVisible(false)
           setSelectedPR(null)
         }}
-        footer={[
-          <Button key="close" onClick={() => {
-            setDetailModalVisible(false)
-            setSelectedPR(null)
-          }}>
-            닫기
-          </Button>,
-        ]}
+        footer={
+          [
+            <Button key="close" onClick={() => {
+              setDetailModalVisible(false)
+              setSelectedPR(null)
+            }}>
+              닫기
+            </Button>,
+            canApprove && selectedPR && !selectedPR.convertedToPO && (
+              <Button
+                key="approveAndConvert"
+                type="primary"
+                style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
+                onClick={async () => {
+                  if (!selectedPR) return;
+
+                  // 이미 승인된 상태라면 바로 PO 변환
+                  if (selectedPR.status === 'approved') {
+                    setDetailModalVisible(false);
+                    handleConvertToPO(selectedPR);
+                    return;
+                  }
+
+                  // 승인되지 않은 상태라면 승인 후 PO 변환
+                  try {
+                    await api.post(`/purchase-requests/${selectedPR._id}/approve`, {
+                      action: 'approve',
+                    });
+                    message.success('자동 승인되었습니다.');
+                    setDetailModalVisible(false);
+
+                    // 업데이트된 객체로 변환
+                    const updatedPR = { ...selectedPR, status: 'approved' } as PurchaseRequest;
+                    handleConvertToPO(updatedPR);
+                    fetchRequests(); // 목록 갱신
+                  } catch (e: any) {
+                    message.warning('자동 승인에 실패했습니다. 수동으로 승인해주세요.');
+                  }
+                }}
+              >
+                승인 및 PO 변환
+              </Button>
+            ),
+          ]}
         width={800}
       >
         {selectedPR && (
@@ -1381,10 +1645,10 @@ const PurchaseRequests = () => {
                   columns={[
                     { title: '품명', dataIndex: 'description', key: 'description', width: 200 },
                     { title: 'MODEL NO', dataIndex: 'modelNo', key: 'modelNo', width: 150 },
-                    { 
-                      title: '스펙', 
-                      dataIndex: 'spec', 
-                      key: 'spec', 
+                    {
+                      title: '스펙',
+                      dataIndex: 'spec',
+                      key: 'spec',
                       width: 300,
                       render: (spec: string) => spec ? (
                         <div style={{ maxWidth: 300, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
@@ -1413,8 +1677,8 @@ const PurchaseRequests = () => {
             )}
           </div>
         )}
-      </Modal>
-    </div>
+      </Modal >
+    </div >
   )
 }
 

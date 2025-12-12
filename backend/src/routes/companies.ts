@@ -13,16 +13,17 @@ router.get('/', async (req: Request, res: Response) => {
     // MongoDB 연결 확인
     const mongoose = await import('mongoose');
     if (mongoose.default.connection.readyState !== 1) {
-      return res.status(503).json({ 
+      return res.status(503).json({
         message: '데이터베이스에 연결할 수 없습니다.',
         error: 'DATABASE_CONNECTION_ERROR'
       });
     }
 
     const { isActive, search } = req.query;
-    
+
     let query: any = {};
     if (isActive !== undefined) {
+      // 문자열 'true'/'false'를 boolean으로 변환
       query.isActive = isActive === 'true';
     }
     if (search) {
@@ -105,11 +106,11 @@ router.put('/:id', async (req: Request, res: Response) => {
       { ...req.body, code: req.body.code?.toUpperCase() },
       { new: true, runValidators: true }
     );
-    
+
     if (!company) {
       return res.status(404).json({ message: '법인을 찾을 수 없습니다' });
     }
-    
+
     res.json(company);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
@@ -120,19 +121,16 @@ router.put('/:id', async (req: Request, res: Response) => {
  * DELETE /api/companies/:id
  * 법인 삭제 (실제로는 isActive를 false로 변경)
  */
+// DELETE /api/companies/:id
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
-    const company = await Company.findByIdAndUpdate(
-      req.params.id,
-      { isActive: false },
-      { new: true }
-    );
-    
+    const company = await Company.findByIdAndDelete(req.params.id);
+
     if (!company) {
       return res.status(404).json({ message: '법인을 찾을 수 없습니다' });
     }
-    
-    res.json({ message: '법인이 비활성화되었습니다', company });
+
+    res.json({ message: '법인이 삭제되었습니다', company });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }

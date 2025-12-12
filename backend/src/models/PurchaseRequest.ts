@@ -23,6 +23,7 @@ export interface IPurchaseRequest extends Document {
   priority: 'low' | 'medium' | 'high' | 'urgent';
   requestedDate: Date;
   requiredDate?: Date;
+  estimatedDeliveryDate?: Date; // 예상 배송일/입고일
   reason?: string;
   notes?: string;
   approvedBy?: mongoose.Types.ObjectId;
@@ -105,6 +106,7 @@ const PurchaseRequestSchema = new Schema<IPurchaseRequest>(
       default: Date.now,
     },
     requiredDate: Date,
+    estimatedDeliveryDate: Date,
     reason: String,
     notes: String,
     approvedBy: {
@@ -124,7 +126,7 @@ const PurchaseRequestSchema = new Schema<IPurchaseRequest>(
 );
 
 // PR 번호 자동 생성
-PurchaseRequestSchema.pre('save', async function (next) {
+PurchaseRequestSchema.pre('validate', async function (next) {
   if (!this.prNumber) {
     const count = await mongoose.model('PurchaseRequest').countDocuments();
     this.prNumber = `PR-${new Date().getFullYear()}-${String(count + 1).padStart(6, '0')}`;

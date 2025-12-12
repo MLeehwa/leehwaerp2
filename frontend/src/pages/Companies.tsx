@@ -41,7 +41,7 @@ const Companies = () => {
   const fetchCompanies = async () => {
     setLoading(true)
     try {
-      const response = await api.get('/companies')
+      const response = await api.get('/companies?isActive=true')
       setCompanies(response.data || [])
     } catch (error) {
       message.error('법인 목록을 불러오는데 실패했습니다')
@@ -81,7 +81,7 @@ const Companies = () => {
         name: values.name, // 영문명
         nameEn: values.name, // 영문명을 nameEn에도 저장 (호환성)
       }
-      
+
       if (editingCompany?._id) {
         await api.put(`/companies/${editingCompany._id}`, submitData)
         message.success('법인이 수정되었습니다')

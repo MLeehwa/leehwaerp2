@@ -4,6 +4,7 @@ export interface IAccountsPayable extends Document {
   apNumber: string;
   purchaseOrder: mongoose.Types.ObjectId;
   supplier: mongoose.Types.ObjectId;
+  locationId?: mongoose.Types.ObjectId;
   invoiceNumber?: string;
   invoiceDate?: Date;
   dueDate: Date;
@@ -26,6 +27,12 @@ export interface IAccountsPayable extends Document {
     paymentMethod: string;
     referenceNumber?: string;
     notes?: string;
+  }[];
+  attachments?: {
+    name: string;
+    size: number;
+    type: string;
+    url?: string;
   }[];
   createdAt: Date;
   updatedAt: Date;
@@ -65,6 +72,10 @@ const AccountsPayableSchema = new Schema<IAccountsPayable>(
       type: Schema.Types.ObjectId,
       ref: 'Supplier',
       required: true,
+    },
+    locationId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Location',
     },
     invoiceNumber: String,
     invoiceDate: Date,
@@ -127,6 +138,12 @@ const AccountsPayableSchema = new Schema<IAccountsPayable>(
       required: true,
     },
     payments: [PaymentSchema],
+    attachments: [{
+      name: String,
+      size: Number,
+      type: String,
+      url: String
+    }],
   },
   {
     timestamps: true,

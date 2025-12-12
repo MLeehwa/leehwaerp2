@@ -7,6 +7,7 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://admin:your_secure_pass
 
 // MongoDB 연결 상태 캐싱 (Serverless 환경 대응)
 // 전역 변수로 연결 상태를 유지하여 Hot Reload/Lambda 재사용 시 연결 재사용
+let isConnected = false;
 let cachedClient: typeof mongoose | null = null;
 let cachedPromise: Promise<typeof mongoose> | null = null;
 
@@ -18,17 +19,22 @@ export const connectDB = async (): Promise<boolean> => {
 
   if (cachedPromise) {
     // 이미 연결 시도 중이면 그 Promise를 반환 (동시 요청 처리)
-    await cachedPromise;
-    return true;
+    try {
+      await cachedPromise;
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   try {
     const options: mongoose.ConnectOptions = {
-      // MongoDB 7.0+ 호환성
-      serverSelectionTimeoutMS: 15000,
-      socketTimeoutMS: 45000,
-      connectTimeoutMS: 15000,
-      bufferCommands: false, // 연결되지 않았을 때 버퍼링하지 않고 즉시 에러 발생 (Serverless에서 중요)
+      // Serverless 환경 최적화
+      maxPoolSize: 10,          // Lambda 하나당 연결 10개 (동시 요청 처리 능력을 위해 1 -> 10 상향)
+      serverSelectionTimeoutMS: 10000, // 5초 -> 10초 (연결 지연 허용)
+      socketTimeoutMS: 45000,   // 30초 -> 45초
+      connectTimeoutMS: 10000,  // 5초 -> 10초
+      bufferCommands: true,     // 연결 끊겨도 잠시 버퍼링 (즉시 에러 방지)
     };
 
     console.log('🔄 MongoDB 새로운 연결 시도...');

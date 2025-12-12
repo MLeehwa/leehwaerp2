@@ -38,13 +38,15 @@ const Locations = () => {
   const fetchLocations = async () => {
     setLoading(true)
     try {
-      const response = await api.get('/locations')
-      // 백엔드 응답을 프론트엔드 형식으로 변환
-      const locations = (response.data || []).map((loc: any) => ({
-        ...loc,
-        companyId: loc.company?._id || loc.company,
-        companyName: loc.company?.name || '',
-      }))
+      const response = await api.get('/locations?isActive=true')
+      // 백엔드 응답을 프론트엔드 형식으로 변환 (Client-side fail-safe filtering)
+      const locations = (response.data || [])
+        .filter((loc: any) => loc.isActive !== false) // 서버 필터링 실패 대비 2중 차단
+        .map((loc: any) => ({
+          ...loc,
+          companyId: loc.company?._id || loc.company,
+          companyName: loc.company?.name || '',
+        }))
       setLocations(locations)
     } catch (error) {
       message.error('로케이션 목록을 불러오는데 실패했습니다')
@@ -97,7 +99,7 @@ const Locations = () => {
         company: values.companyId || values.company,
       }
       delete submitData.companyId
-      
+
       if (editingLocation?._id) {
         await api.put(`/locations/${editingLocation._id}`, submitData)
         message.success('로케이션이 수정되었습니다')

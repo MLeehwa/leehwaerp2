@@ -27,10 +27,10 @@ const Categories = () => {
   const fetchCategories = async () => {
     setLoading(true)
     try {
-      const response = await api.get('/categories')
+      const response = await api.get('/categories?isActive=true')
       console.log('카테고리 API 응답:', response.data)
       if (Array.isArray(response.data)) {
-      setCategories(response.data)
+        setCategories(response.data)
         if (response.data.length === 0) {
           console.log('카테고리 데이터가 없습니다. 초기 데이터를 생성하세요.')
         }

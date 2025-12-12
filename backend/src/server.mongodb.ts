@@ -58,6 +58,12 @@ import setupRoutes from './routes/setup';
 // import { hashPassword } from './utils/password';
 
 dotenv.config();
+console.log('📝 Env loaded. MONGODB_URI exists:', !!process.env.MONGODB_URI);
+if (process.env.MONGODB_URI) {
+  console.log('   URI starts with:', process.env.MONGODB_URI.substring(0, 15) + '...');
+} else {
+  console.error('❌ MONGODB_URI is missing from environment variables!');
+}
 
 const app = express();
 const PORT = process.env.PORT || 5500;
@@ -73,6 +79,101 @@ app.use(express.urlencoded({ extended: true }));
 // 디버깅: 모든 요청 로깅
 app.use((req, res, next) => {
   console.log(`📥 ${req.method} ${req.path}`);
+  next();
+});
+
+// -------------------------------------------------------------------------
+// [Health Check] DB 연결 여부와 상관없이 항상 응답 (최우선순위)
+// -------------------------------------------------------------------------
+app.get('/api/health', async (req, res) => {
+  console.log('🏥 Health check requested');
+  try {
+    // 동적 import 로깅
+    console.log('🏥 Importing mongoose...');
+    const mongoose = await import('mongoose');
+    console.log('🏥 Importing mongodb utils...');
+    const { getConnectionStatus } = await import('./db/mongodb');
+
+    const dbStatus = getConnectionStatus();
+    console.log('🏥 DB Status:', dbStatus);
+
+    const connectionState = mongoose.default.connection.readyState;
+    const connectionStates = {
+      0: 'disconnected',
+      1: 'connected',
+      2: 'connecting',
+      3: 'disconnecting',
+    };
+
+    const dbInfo: any = {
+      status: dbStatus ? 'connected' : 'disconnected',
+      state: connectionStates[connectionState as keyof typeof connectionStates] || 'unknown',
+      readyState: connectionState,
+    };
+
+    if (dbStatus && mongoose.default.connection.db) {
+      dbInfo.database = mongoose.default.connection.db.databaseName;
+      dbInfo.host = mongoose.default.connection.host;
+      dbInfo.port = mongoose.default.connection.port;
+    }
+
+    console.log('🏥 Sending health response');
+    res.json({
+      status: 'OK',
+      message: 'ERP System API is running',
+      server: {
+        port: PORT,
+        uptime: process.uptime(),
+      },
+      database: dbInfo,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    console.error('🏥 Health check error:', error);
+    res.json({
+      status: 'OK',
+      message: 'ERP System API is running (DB disconnected)',
+      server: {
+        port: PORT,
+        uptime: process.uptime(),
+      },
+      database: {
+        status: 'disconnected',
+        error: error.message,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// -------------------------------------------------------------------------
+// [Middleware] DB 연결 보장 (Routes 등록 전에 필수!)
+// -------------------------------------------------------------------------
+app.use(async (req, res, next) => {
+  // 1. API 요청이 아니면 패스 (정적 파일 등)
+  if (!req.path.startsWith('/api')) return next();
+
+  // 2. Health check는 연결 시도 없이 상태만 확인하므로 패스 (자체 로직 존재)
+  if (req.path === '/api/health' || req.path === '/api/health/db') return next();
+
+  // 3. API 요청이면 DB 연결 보장
+  let isConnected = await connectDB();
+
+  // 연결 실패 시 1회 재시도 (Cold Start Jitter 완화)
+  if (!isConnected) {
+    console.log('⚠️ DB 연결 실패. 500ms 후 재시도...');
+    await new Promise(resolve => setTimeout(resolve, 500));
+    isConnected = await connectDB();
+  }
+
+  if (!isConnected) {
+    console.error('❌ API 요청 처리 중 DB 연결 실패 (최종)');
+    return res.status(503).json({
+      message: '서비스를 사용할 수 없습니다. 잠시 후 다시 시도해주세요.',
+      code: 'DB_CONNECTION_FAILED'
+    });
+  }
+
   next();
 });
 
@@ -194,25 +295,9 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-// DB 연결 보장 미들웨어 (Serverless 환경의 Cold Start 문제 해결)
-app.use(async (req, res, next) => {
-  // 정적 파일 요청이나 헬스 체크는 DB 연결 대기 불피요 (선택 사항)
-  // if (req.path.startsWith('/assets') || req.path === '/api/health') return next();
-
-  // API 요청에 대해서만 DB 연결 보장
-  if (req.path.startsWith('/api')) {
-    const isConnected = await connectDB();
-    if (!isConnected) {
-      console.error('❌ API 요청 처리 중 DB 연결 실패');
-      // 503 유지
-    }
-  }
-  next();
-});
-
 // MongoDB 연결 및 초기화 (최초 1회 실행 보장을 위해 함수로 분리)
 const initializeDatabase = async () => {
-  // 미들웨어에서 connectDB가 호출되므로 여기서 명시적 호출은 생략 가능하나, 
+  // 미들웨어에서 connectDB가 호출되므로 여기서 명시적 호출은 생략 가능하나,
   // 관리자 계정 생성 등 초기화 로직을 위해 유지
   const connected = await connectDB();
   if (connected) {
@@ -241,59 +326,7 @@ const initializeDatabase = async () => {
 initializeDatabase();
 
 // Health check - 상세한 상태 정보 제공
-app.get('/api/health', async (req, res) => {
-  try {
-    const mongoose = await import('mongoose');
-    const { getConnectionStatus } = await import('./db/mongodb');
-    const dbStatus = getConnectionStatus();
 
-    const connectionState = mongoose.default.connection.readyState;
-    const connectionStates = {
-      0: 'disconnected',
-      1: 'connected',
-      2: 'connecting',
-      3: 'disconnecting',
-    };
-
-    const dbInfo: any = {
-      status: dbStatus ? 'connected' : 'disconnected',
-      state: connectionStates[connectionState as keyof typeof connectionStates] || 'unknown',
-      readyState: connectionState,
-    };
-
-    if (dbStatus && mongoose.default.connection.db) {
-      dbInfo.database = mongoose.default.connection.db.databaseName;
-      dbInfo.host = mongoose.default.connection.host;
-      dbInfo.port = mongoose.default.connection.port;
-    }
-
-    res.json({
-      status: 'OK',
-      message: 'ERP System API is running',
-      server: {
-        port: PORT,
-        uptime: process.uptime(),
-      },
-      database: dbInfo,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error: any) {
-    // 서버는 실행 중이지만 DB 연결이 안 된 경우
-    res.json({
-      status: 'OK',
-      message: 'ERP System API is running (DB disconnected)',
-      server: {
-        port: PORT,
-        uptime: process.uptime(),
-      },
-      database: {
-        status: 'disconnected',
-        error: error.message,
-      },
-      timestamp: new Date().toISOString(),
-    });
-  }
-});
 
 // MongoDB 연결 상태 확인 전용 엔드포인트
 app.get('/api/health/db', async (req, res) => {
@@ -408,4 +441,3 @@ process.on('unhandledRejection', (reason, promise) => {
   // 서버는 계속 실행
   // MongoDB 연결 실패 등은 여기서 처리됨
 });
-

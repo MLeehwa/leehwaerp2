@@ -10,6 +10,7 @@ export interface IPurchaseOrderItem {
   total: number;
   receivedQuantity?: number;
   categoryCode?: string; // 카테고리 코드 (Category.code 참조)
+  websiteUrl?: string;
 }
 
 export interface IPurchaseOrder extends Document {
@@ -23,7 +24,7 @@ export interface IPurchaseOrder extends Document {
   discount: number;
   total: number;
   currency: string;
-  status: 'draft' | 'sent' | 'confirmed' | 'partial' | 'received' | 'cancelled';
+  status: 'draft' | 'sent' | 'confirmed' | 'partial' | 'received' | 'cancelled' | 'invoiced' | 'paid';
   orderDate: Date;
   expectedDeliveryDate?: Date;
   actualDeliveryDate?: Date;
@@ -37,6 +38,7 @@ export interface IPurchaseOrder extends Document {
     country: string;
   };
   notes?: string;
+  locationId?: mongoose.Types.ObjectId; // 발주 부서/위치
   createdBy: mongoose.Types.ObjectId;
   approvedBy?: mongoose.Types.ObjectId;
   approvedAt?: Date;
@@ -85,6 +87,10 @@ const PurchaseOrderItemSchema = new Schema<IPurchaseOrderItem>({
     uppercase: true,
     trim: true,
   },
+  websiteUrl: {
+    type: String,
+    trim: true,
+  },
 });
 
 const PurchaseOrderSchema = new Schema<IPurchaseOrder>(
@@ -131,7 +137,7 @@ const PurchaseOrderSchema = new Schema<IPurchaseOrder>(
     },
     status: {
       type: String,
-      enum: ['draft', 'sent', 'confirmed', 'partial', 'received', 'cancelled'],
+      enum: ['draft', 'sent', 'confirmed', 'partial', 'received', 'cancelled', 'invoiced', 'paid'],
       default: 'draft',
     },
     orderDate: {
@@ -156,6 +162,10 @@ const PurchaseOrderSchema = new Schema<IPurchaseOrder>(
       country: String,
     },
     notes: String,
+    locationId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Location',
+    },
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: 'User',
@@ -173,10 +183,22 @@ const PurchaseOrderSchema = new Schema<IPurchaseOrder>(
 );
 
 // PO 번호 자동 생성
-PurchaseOrderSchema.pre('save', async function (next) {
+PurchaseOrderSchema.pre('validate', async function (next) {
   if (!this.poNumber) {
-    const count = await mongoose.model('PurchaseOrder').countDocuments();
-    this.poNumber = `PO-${new Date().getFullYear()}-${String(count + 1).padStart(6, '0')}`;
+    const lastPO = await mongoose.model('PurchaseOrder').findOne({}).sort({ poNumber: -1 });
+    let newNumber = 1;
+    if (lastPO && lastPO.poNumber) {
+      const parts = lastPO.poNumber.split('-');
+      if (parts.length === 3) {
+        const lastYear = parseInt(parts[1], 10);
+        const lastSeq = parseInt(parts[2], 10);
+        const currentYear = new Date().getFullYear();
+        if (lastYear === currentYear) {
+          newNumber = lastSeq + 1;
+        }
+      }
+    }
+    this.poNumber = `PO-${new Date().getFullYear()}-${String(newNumber).padStart(6, '0')}`;
   }
 
   // 총액 계산

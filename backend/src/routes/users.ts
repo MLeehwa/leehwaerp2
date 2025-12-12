@@ -10,7 +10,14 @@ const router = express.Router();
 // 모든 사용자 조회 (관리자만)
 router.get('/', checkMongoDB, authenticate, authorize('admin', 'manager'), async (req: AuthRequest, res: Response) => {
   try {
-    const users = await User.find({})
+    const { isActive } = req.query;
+
+    let query: any = {};
+    if (isActive !== undefined) {
+      query.isActive = isActive === 'true';
+    }
+
+    const users = await User.find(query)
       .select('-password')
       .populate('roles', 'name description')
       .lean();
@@ -27,7 +34,7 @@ router.get('/me', checkMongoDB, authenticate, async (req: AuthRequest, res: Resp
       .select('-password')
       .populate('roles', 'name description permissions')
       .lean();
-    
+
     if (!user) {
       return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
     }
@@ -113,7 +120,7 @@ router.post('/', checkMongoDB, authenticate, authorize('admin'), async (req: Aut
     console.error('사용자 생성 오류:', error);
     // MongoDB 연결 오류인 경우
     if (error.name === 'MongoServerError' || error.name === 'MongooseError') {
-      return res.status(503).json({ 
+      return res.status(503).json({
         message: '데이터베이스에 연결할 수 없습니다. MongoDB가 실행 중인지 확인하세요.',
         error: 'DATABASE_CONNECTION_ERROR'
       });
@@ -121,11 +128,11 @@ router.post('/', checkMongoDB, authenticate, authorize('admin'), async (req: Aut
     // 중복 키 오류
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern || {})[0];
-      return res.status(400).json({ 
-        message: `이미 존재하는 ${field === 'email' ? '이메일' : field === 'username' ? '아이디' : field}입니다.` 
+      return res.status(400).json({
+        message: `이미 존재하는 ${field === 'email' ? '이메일' : field === 'username' ? '아이디' : field}입니다.`
       });
     }
-    res.status(500).json({ 
+    res.status(500).json({
       message: error.message || '사용자 생성 중 오류가 발생했습니다.',
       error: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
@@ -149,7 +156,7 @@ router.put('/:id', checkMongoDB, authenticate, authorize('admin'), async (req: A
     if (role !== undefined) updateData.role = role;
     if (allowedMenus !== undefined) updateData.allowedMenus = allowedMenus;
     if (isActive !== undefined) updateData.isActive = isActive;
-    
+
     // roles 업데이트
     if (roles !== undefined) {
       if (Array.isArray(roles) && roles.length > 0) {
@@ -170,7 +177,7 @@ router.put('/:id', checkMongoDB, authenticate, authorize('admin'), async (req: A
       updateData,
       { new: true, runValidators: true }
     ).select('-password').populate('roles', 'name description');
-    
+
     res.json(updated);
   } catch (error: any) {
     res.status(500).json({ message: error.message });

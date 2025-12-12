@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from 'openai';
 import Project from '../models/Project';
 import Customer from '../models/Customer';
 
@@ -8,17 +8,20 @@ interface ChatMessage {
 }
 
 export class AiService {
-    private genAI: GoogleGenerativeAI;
-    private model: any;
+    private openai: OpenAI;
+    private model: string;
 
     constructor() {
-        const apiKey = process.env.GEMINI_API_KEY;
+        const apiKey = process.env.OPENAI_API_KEY;
         if (!apiKey) {
-            console.error('❌ GEMINI_API_KEY is missing in .env');
+            console.error('❌ OPENAI_API_KEY is missing in .env');
         }
-        this.genAI = new GoogleGenerativeAI(apiKey || 'dummy-key');
-        // Using a fast and capable model
-        this.model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+        this.openai = new OpenAI({
+            apiKey: apiKey || 'dummy-key',
+        });
+
+        // Use GPT-4o-mini or GPT-4o as preferred fast/smart models
+        this.model = process.env.OPENAI_MODEL || "gpt-4o-mini";
     }
 
     private async getSystemPrompt(): Promise<string> {
@@ -75,9 +78,9 @@ export class AiService {
     }
 
     public async chat(messages: ChatMessage[]): Promise<any> {
-        if (!process.env.GEMINI_API_KEY) {
+        if (!process.env.OPENAI_API_KEY) {
             return {
-                message: "Gemini API Key is missing in .env. Please configure GEMINI_API_KEY.",
+                message: "OpenAI API Key is missing in .env. Please configure OPENAI_API_KEY.",
                 action: "none"
             };
         }
@@ -85,47 +88,32 @@ export class AiService {
         try {
             const systemPrompt = await this.getSystemPrompt();
 
-            // Prepare history for Gemini
-            // Gemini roles: 'user' or 'model'. System prompt is usually passed effectively as the first user message or via system instructions in newer API versions.
-            // Here we'll prepend the system prompt to the first message for simplicity and compatibility.
+            // Prepare messages for OpenAI
+            const openAiMessages: any[] = [
+                { role: 'system', content: systemPrompt },
+                ...messages
+            ];
 
-            const history = messages.map(m => ({
-                role: m.role === 'assistant' ? 'model' : 'user',
-                parts: [{ text: m.content }]
-            })).filter(m => m.role !== 'user' || m.parts[0].text !== undefined); // Simple filter
-
-            // Initialize chat with history (excluding the very last message which is the new input)
-            // But strict conversion: OpenAI messages include the latest one.
-            // We need to separate history vs current prompt for `startChat` + `sendMessage`, OR use `generateContent` with all messages.
-            // `startChat` is better for multi-turn.
-
-            const chatObj = this.model.startChat({
-                history: [
-                    {
-                        role: 'user',
-                        parts: [{ text: `SYSTEM INSTRUCTION: ${systemPrompt}` }]
-                    },
-                    ...history.slice(0, -1) // All previous messages
-                ],
-                generationConfig: {
-                    responseMimeType: "application/json",
-                }
+            const completion = await this.openai.chat.completions.create({
+                model: this.model,
+                messages: openAiMessages,
+                response_format: { type: "json_object" }, // Enforce JSON response
             });
 
-            const lastMessage = history[history.length - 1];
-            const result = await chatObj.sendMessage(lastMessage.parts[0].text);
-            const responseText = result.response.text();
+            const responseText = completion.choices[0].message.content;
 
             if (!responseText) {
-                throw new Error("No content in Gemini response");
+                throw new Error("No content in OpenAI response");
             }
 
             return JSON.parse(responseText);
 
         } catch (error: any) {
-            console.error('Gemini Service Error:', error);
+            console.error('OpenAI Service Error:', error);
+
+            // Fallback for JSON parse error or API error
             return {
-                message: "오류가 발생했습니다: " + error.message,
+                message: "오류가 발생했습니다: " + (error.message || "Unknown error"),
                 action: "none"
             };
         }
@@ -133,3 +121,4 @@ export class AiService {
 }
 
 export const aiService = new AiService();
+

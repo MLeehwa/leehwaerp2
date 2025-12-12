@@ -260,16 +260,13 @@ router.put('/:id', checkDBConnection, async (req: Request, res: Response) => {
  */
 router.delete('/:id', checkDBConnection, async (req: Request, res: Response) => {
   try {
-    const supplier = await Supplier.findById(req.params.id);
+    const supplier = await Supplier.findByIdAndDelete(req.params.id);
 
     if (!supplier) {
       return res.status(404).json({ message: '공급업체를 찾을 수 없습니다.' });
     }
 
-    supplier.isActive = false;
-    await supplier.save();
-
-    res.json({ message: '공급업체가 비활성화되었습니다.' });
+    res.json({ message: '공급업체가 삭제되었습니다.' });
   } catch (error: any) {
     console.error('Error deleting supplier:', error);
     res.status(500).json({ message: error.message });

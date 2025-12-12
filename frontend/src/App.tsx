@@ -9,6 +9,7 @@ import ComingSoon from './components/ComingSoon'
 import Categories from './pages/Categories'
 import PurchaseRequests from './pages/PurchaseRequests'
 import PurchaseOrders from './pages/PurchaseOrders'
+import PurchaseOrderPrint from './pages/PurchaseOrderPrint'
 import AccountsPayable from './pages/AccountsPayable'
 import AccountsReceivable from './pages/AccountsReceivable'
 import Suppliers from './pages/Suppliers'
@@ -73,6 +74,14 @@ function AppRoutes() {
       <Route path="/login" element={user ? <Navigate to="/sales" replace /> : <Login />} />
       <Route path="/register" element={user ? <Navigate to="/sales" replace /> : <Register />} />
       <Route path="/" element={user ? <Navigate to="/sales" replace /> : <Navigate to="/login" replace />} />
+      <Route
+        path="/print/purchase-orders/:id"
+        element={
+          <ProtectedRoute>
+            <PurchaseOrderPrint />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/calendar"
         element={
@@ -142,6 +151,7 @@ function AppRoutes() {
         <Route index element={<Navigate to="/purchase/purchase-requests" replace />} />
         <Route path="purchase-requests" element={<PurchaseRequests />} />
         <Route path="purchase-orders" element={<PurchaseOrders />} />
+        <Route path="purchase-orders/:id/print" element={<PurchaseOrderPrint />} />
         <Route path="goods-receipt" element={<GoodsReceipt />} />
         <Route path="goods-receipt" element={<GoodsReceipt />} />
         <Route path="reports" element={<ComingSoon title="Purchase Reports" />} />

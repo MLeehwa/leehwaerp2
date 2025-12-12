@@ -140,11 +140,30 @@ router.put('/:id', authenticate, authorize('admin', 'manager'), async (req: Auth
       return res.status(404).json({ message: '구매주문을 찾을 수 없습니다.' });
     }
 
-    if (po.status !== 'draft') {
+    if (po.status !== 'draft' && po.status !== 'cancelled') {
       return res.status(400).json({ message: '발송된 구매주문은 수정할 수 없습니다.' });
     }
 
     const updates = req.body;
+
+    // if it was cancelled, we might want to revive it to draft if not explicitly set?
+    // The frontend sends the whole object, likely preserving 'status' or not?
+    // If the intention of 'Edit' on cancelled is to revive, we should ensure it goes back to draft.
+    if (po.status === 'cancelled') {
+      updates.status = 'draft';
+      po.status = 'draft'; // Explicitly set for logic below
+
+      // If this PO has a linked PR, re-claim it
+      if (po.purchaseRequest) {
+        const pr = await PurchaseRequest.findById(po.purchaseRequest);
+        if (pr) {
+          pr.convertedToPO = po._id as any;
+          pr.status = 'converted';
+          await pr.save();
+        }
+      }
+    }
+
     Object.keys(updates).forEach(key => {
       // Safe update filtering could be here
       if (key !== '_id' && key !== 'poNumber' && key !== 'createdAt' && key !== 'updatedAt') {
@@ -180,6 +199,69 @@ router.post('/:id/approve', authenticate, authorize('admin', 'manager'), async (
     po.approvedAt = new Date();
 
     await po.save();
+
+    // Auto Create AP in try-catch to prevent blocking PO approval on AP failure
+    try {
+      // Check for existing AP
+      const existingAP = await AccountsPayable.findOne({ purchaseOrder: po._id });
+      if (!existingAP && po.supplier) {
+        // Default 30 days if no terms or specific logic
+        const dueDate = new Date(po.orderDate || new Date());
+        dueDate.setDate(dueDate.getDate() + 30);
+
+        // Normalize Payment Method
+        let paymentMethod: any = po.paymentMethod;
+        const validMethods = ['cash', 'bank_transfer', 'check', 'credit_card'];
+        if (!paymentMethod || !validMethods.includes(paymentMethod)) {
+          paymentMethod = 'bank_transfer'; // Default fallback
+        }
+
+        const isCreditCard = paymentMethod === 'credit_card';
+        const paidAmount = isCreditCard ? po.total : 0;
+        const remainingAmount = isCreditCard ? 0 : po.total;
+        const status = isCreditCard ? 'paid' : 'pending';
+        const paymentStatus = isCreditCard ? 'paid' : 'unpaid';
+
+        const payments = isCreditCard ? [{
+          paymentDate: new Date(),
+          amount: po.total,
+          paymentMethod: 'credit_card',
+          referenceNumber: `CC-${po.poNumber}`,
+          notes: 'Credit Card Auto-Payment',
+        }] : [];
+
+        const ap = new AccountsPayable({
+          purchaseOrder: po._id,
+          supplier: po.supplier,
+          subtotal: po.subtotal || 0,
+          tax: po.tax || 0,
+          discount: po.discount || 0,
+          total: po.total || 0,
+          paidAmount,
+          remainingAmount,
+          dueDate,
+          paymentTerms: po.paymentTerms || 'Net 30',
+          currency: po.currency || 'USD',
+          paymentMethod,
+          status,
+          paymentStatus,
+          createdBy: req.userId,
+          payments,
+        });
+
+        await ap.save();
+        console.log(`AP Auto-Created: ${ap.apNumber}`);
+      } else if (existingAP && !existingAP.locationId && po.locationId) {
+        // Repair "invisible" AP that was created without locationId
+        existingAP.locationId = po.locationId;
+        await existingAP.save();
+        console.log(`AP Repaired (Added LocationId): ${existingAP.apNumber}`);
+      }
+    } catch (apError) {
+      console.error('Failed to auto-create AP:', apError);
+      // We do NOT return error here, to ensure PO approval succeeds even if AP fails
+    }
+
     await po.populate('approvedBy', 'username firstName lastName');
 
     res.json(po);
@@ -209,6 +291,45 @@ router.post('/:id/confirm', authenticate, authorize('admin', 'manager'), async (
     res.status(500).json({ message: error.message });
   }
 });
+
+// 구매주문 취소
+router.put(
+  '/:id/cancel',
+  authenticate,
+  authorize('admin', 'manager'),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const po = await PurchaseOrder.findById(req.params.id);
+      if (!po) {
+        return res.status(404).json({ message: '구매주문을 찾을 수 없습니다.' });
+      }
+
+      if (po.status === 'received' || po.status === 'invoiced' || po.status === 'paid') {
+        return res.status(400).json({ message: '이미 처리된 주문은 취소할 수 없습니다.' });
+      }
+
+      po.status = 'cancelled';
+      await po.save();
+
+      // 연관된 PR이 있다면 다시 원복 (convertedToPO 해제)
+      if (po.purchaseRequest) {
+        const pr = await PurchaseRequest.findById(po.purchaseRequest);
+        if (pr) {
+          pr.convertedToPO = undefined; // undefined or null to unset
+          // status가 'converted'였다면 'approved'로 되돌림 (다시 PO 생성 가능하도록)
+          if (pr.status === 'converted' || pr.convertedToPO) { // check convertedToPO just in case
+            pr.status = 'approved';
+          }
+          await pr.save();
+        }
+      }
+
+      res.json(po);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+);
 
 // 입고 처리
 router.post(
@@ -334,6 +455,23 @@ router.post('/:id/cancel', authenticate, authorize('admin'), async (req: AuthReq
       po.notes = (po.notes || '') + `\n취소 사유: ${reason}`;
     }
     await po.save();
+
+    // 연관된 AP가 있다면 함께 취소
+    const ap = await AccountsPayable.findOne({ purchaseOrder: po._id });
+    if (ap) {
+      // 이미 지급된 건은 취소 불가 (또는 경고) - 여기서는 강제 취소보다는 상태 동기화
+      if (ap.paymentStatus === 'paid') {
+        // Log warning or handle differently? 
+        // User asked: "PO 취소시에는 카드 결제가 안되서 AP 자체가 안뜨게 하면 될것 같아"
+        // If it was auto-paid by Credit Card, we should probably cancel it too since the transaction didn't happen potentially?
+        // However, if it's a real accounting record, we shouldn't just delete.
+        // Let's set status to cancelled.
+        console.warn(`Warning: Cancelling AP ${ap.apNumber} which was marked as paid.`);
+      }
+      ap.status = 'cancelled';
+      ap.notes = (ap.notes || '') + '\n구매주문 취소로 인한 자동 취소';
+      await ap.save();
+    }
 
     res.json(po);
   } catch (error: any) {

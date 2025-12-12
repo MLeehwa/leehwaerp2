@@ -18,6 +18,7 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
     if (status) query.status = status;
     if (paymentStatus) query.paymentStatus = paymentStatus;
     if (supplier) query.supplier = supplier;
+    if (req.query.locationId) query.locationId = req.query.locationId;
 
     // 만료된 항목 필터링 (DB Level where possible)
     if (overdue === 'true') {
@@ -38,6 +39,54 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
       .sort({ dueDate: 1 });
 
     res.json(payables);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// 긴급 데이터 복구용 API (Debug)
+router.post('/debug/fix-data', authenticate, authorize('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const sentPOs = await PurchaseOrder.find({
+      status: { $in: ['sent', 'confirmed', 'partial', 'received', 'paid'] }
+    }).populate('supplier');
+
+    let createdCount = 0;
+    let repairedCount = 0;
+
+    for (const po of sentPOs) {
+      const existingAP = await AccountsPayable.findOne({ purchaseOrder: po._id });
+      if (!existingAP && po.supplier) {
+        // Create Missing AP
+        const ap = new AccountsPayable({
+          purchaseOrder: po._id,
+          supplier: po.supplier._id, // Ensure ObjectId
+          locationId: po.locationId || po.createdBy, // Fallback if locationId missing
+          subtotal: po.subtotal || 0,
+          tax: po.tax || 0,
+          discount: po.discount || 0,
+          total: po.total || 0,
+          paidAmount: 0,
+          remainingAmount: po.total || 0,
+          dueDate: new Date(),
+          paymentTerms: 'Net 30',
+          currency: 'USD',
+          paymentMethod: 'bank_transfer',
+          status: 'pending',
+          paymentStatus: 'unpaid',
+          createdBy: req.userId,
+          apNumber: `AP-${po.poNumber}` // Generic fallback
+        });
+        await ap.save();
+        createdCount++;
+      } else if (existingAP && !existingAP.locationId && po.locationId) {
+        existingAP.locationId = po.locationId as any;
+        await existingAP.save();
+        repairedCount++;
+      }
+    }
+
+    res.json({ message: 'Fix Complete', created: createdCount, repaired: repairedCount });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }

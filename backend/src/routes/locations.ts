@@ -13,18 +13,24 @@ router.get('/', async (req: Request, res: Response) => {
     // MongoDB 연결 확인
     const mongoose = await import('mongoose');
     if (mongoose.default.connection.readyState !== 1) {
-      return res.status(503).json({ 
+      return res.status(503).json({
         message: '데이터베이스에 연결할 수 없습니다.',
         error: 'DATABASE_CONNECTION_ERROR'
       });
     }
 
     const { isActive, company, search } = req.query;
-    
+
+    // Query Parameter Debugging
+    console.log(`[GET /locations] Query Params:`, req.query);
+
     let query: any = {};
-    if (isActive !== undefined) {
-      query.isActive = isActive === 'true';
+    if (isActive) {
+      // Handle potential array or different types by converting to string
+      query.isActive = String(isActive) === 'true';
     }
+
+    console.log(`[GET /locations] MongoDB Query:`, JSON.stringify(query));
     if (company) {
       query.company = company;
     }
@@ -54,11 +60,11 @@ router.get('/:id', async (req: Request, res: Response) => {
   try {
     const location = await Location.findById(req.params.id)
       .populate('company', 'code name');
-    
+
     if (!location) {
       return res.status(404).json({ message: '로케이션을 찾을 수 없습니다' });
     }
-    
+
     res.json(location);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
@@ -127,17 +133,13 @@ router.put('/:id', async (req: Request, res: Response) => {
  */
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
-    const location = await Location.findByIdAndUpdate(
-      req.params.id,
-      { isActive: false },
-      { new: true }
-    );
+    const location = await Location.findByIdAndDelete(req.params.id);
 
     if (!location) {
       return res.status(404).json({ message: '로케이션을 찾을 수 없습니다' });
     }
 
-    res.json({ message: '로케이션이 비활성화되었습니다', location });
+    res.json({ message: '로케이션이 삭제되었습니다', location });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }

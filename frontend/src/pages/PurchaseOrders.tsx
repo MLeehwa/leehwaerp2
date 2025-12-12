@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Table, Tag, message, Button, Modal, Form, Input, Select, InputNumber, DatePicker, Space, Card, Upload } from 'antd'
-import { PlusOutlined, MinusCircleOutlined, FilterOutlined, CheckOutlined, UploadOutlined } from '@ant-design/icons'
+import { PlusOutlined, MinusCircleOutlined, FilterOutlined, CheckOutlined, UploadOutlined, PrinterOutlined, EditOutlined } from '@ant-design/icons'
+
+
 import api from '../utils/api'
 import { useAuth } from '../contexts/AuthContext'
 import type { ColumnsType } from 'antd/es/table'
@@ -15,6 +17,16 @@ interface PurchaseOrder {
   status: string
   total: number
   orderDate: string
+  items?: any[]
+  expectedDeliveryDate?: string
+  shippingAddress?: {
+    name?: string
+    street?: string
+    city?: string
+    state?: string
+    zipCode?: string
+    country?: string
+  }
   locationId?: string
   locationData?: {
     code: string
@@ -27,6 +39,9 @@ interface PurchaseOrder {
     locationData?: {
       code: string
       name: string
+    }
+    requestedByUser?: {
+      username: string
     }
   }
   paymentMethod?: 'cash' | 'bank_transfer' | 'check' | 'credit_card'
@@ -77,6 +92,7 @@ interface PurchaseRequest {
   department?: string
   priority?: string
   requiredDate?: string
+  estimatedDeliveryDate?: string
   reason?: string
   convertedToPO?: string
 }
@@ -104,13 +120,14 @@ const PurchaseOrders = () => {
   const [shippingAddresses, setShippingAddresses] = useState<ShippingAddress[]>([])
   const [locations, setLocations] = useState<Location[]>([])
   const [receiptFileList, setReceiptFileList] = useState<UploadFile[]>([])
+  const [editingPO, setEditingPO] = useState<PurchaseOrder | null>(null)
   const [form] = Form.useForm()
-  
+
   // 필터 상태
   const [filterStatus, setFilterStatus] = useState<string | undefined>(undefined)
   const [filterLocationId, setFilterLocationId] = useState<string | undefined>(undefined)
   const [filterDateRange, setFilterDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null)
-  
+
   // 권한 확인
   const canApprove = user?.role === 'admin' || user?.role === 'manager'
 
@@ -137,7 +154,7 @@ const PurchaseOrders = () => {
         params.startDate = filterDateRange[0].startOf('day').toISOString()
         params.endDate = filterDateRange[1].endOf('day').toISOString()
       }
-      
+
       const response = await api.get('/purchase-orders', { params })
       setOrders(response.data || [])
     } catch (error: any) {
@@ -184,7 +201,7 @@ const PurchaseOrders = () => {
       const response = await api.get('/purchase-requests')
       const allPRs = response.data || []
       // 승인되었거나 제출된 PR만 필터링 (변환되지 않은 것만)
-      const availablePRs = allPRs.filter((pr: PurchaseRequest) => 
+      const availablePRs = allPRs.filter((pr: PurchaseRequest) =>
         (pr.status === 'approved' || pr.status === 'submitted') && !pr.convertedToPO
       )
       console.log('사용 가능한 PR 목록:', availablePRs)
@@ -279,7 +296,9 @@ const PurchaseOrders = () => {
       }
 
       // PR의 필요일자가 있으면 예상 납기일로 설정
-      if (pr.requiredDate) {
+      if (pr.estimatedDeliveryDate) {
+        formValues.expectedDeliveryDate = dayjs(pr.estimatedDeliveryDate)
+      } else if (pr.requiredDate) {
         formValues.expectedDeliveryDate = dayjs(pr.requiredDate)
       }
 
@@ -298,17 +317,6 @@ const PurchaseOrders = () => {
     }
   }
 
-  const handleAdd = () => {
-    form.resetFields()
-    setReceiptFileList([])
-    form.setFieldsValue({ 
-      paymentTerms: 'Net 30',
-      currency: 'USD',
-      items: [{}] 
-    })
-    setModalVisible(true)
-  }
-
   const handleReceiptFileChange = ({ fileList: newFileList }: { fileList: UploadFile[] }) => {
     setReceiptFileList(newFileList)
   }
@@ -321,11 +329,49 @@ const PurchaseOrders = () => {
     return false // 자동 업로드 방지
   }
 
+  const handleEdit = (po: PurchaseOrder) => {
+    form.resetFields()
+    setReceiptFileList([])
+
+    // items 변환
+    const items = po.items?.map((item: any) => ({
+      ...item,
+      // 필요한 경우 변환 로직 추가
+    })) || [{}]
+
+    form.setFieldsValue({
+      ...po,
+      items,
+      orderDate: po.orderDate ? dayjs(po.orderDate) : undefined,
+      expectedDeliveryDate: po.expectedDeliveryDate ? dayjs(po.expectedDeliveryDate) : undefined,
+      // 배송지는 handleShippingAddressSelect 로직과 맞물릴 수 있으므로 주의. 
+      // 여기서는 폼에 직접 매핑된다고 가정.
+      shippingAddress: po.shippingAddress,
+    })
+
+    setEditingPO(po)
+    setModalVisible(true)
+  }
+
+  const handleAdd = () => {
+    form.resetFields()
+    setReceiptFileList([])
+    setEditingPO(null)
+    form.setFieldsValue({
+      paymentTerms: 'Net 30',
+      currency: 'USD',
+      items: [{}]
+    })
+    setModalVisible(true)
+  }
+
+  // ...
+
   const handleSubmit = async (values: any) => {
     try {
       // 날짜 변환 (dayjs 객체인 경우)
       const requestData: any = { ...values }
-      
+
       if (values.orderDate) {
         if (values.orderDate.toDate) {
           requestData.orderDate = values.orderDate.toDate().toISOString()
@@ -333,7 +379,7 @@ const PurchaseOrders = () => {
           requestData.orderDate = values.orderDate.toISOString()
         }
       }
-      
+
       if (values.expectedDeliveryDate) {
         if (values.expectedDeliveryDate.toDate) {
           requestData.expectedDeliveryDate = values.expectedDeliveryDate.toDate().toISOString()
@@ -362,7 +408,7 @@ const PurchaseOrders = () => {
         if (!item.unitPrice || item.unitPrice < 0) {
           throw new Error(`항목 ${index + 1}: 단가를 입력하세요 (0 이상)`)
         }
-        
+
         const total = item.unitPrice * item.quantity
         const processedItem: any = {
           description: item.description,
@@ -404,25 +450,34 @@ const PurchaseOrders = () => {
         return
       }
 
-      console.log('구매주문 생성 요청 데이터:', finalData)
-      const response = await api.post('/purchase-orders', finalData)
-      console.log('구매주문 생성 응답:', response.data)
-      message.success('구매주문이 생성되었습니다')
+      console.log('구매주문 저장 요청 데이터:', finalData)
+
+      let response;
+      if (editingPO) {
+        response = await api.put(`/purchase-orders/${editingPO._id}`, finalData);
+        message.success('구매주문이 수정되었습니다');
+      } else {
+        response = await api.post('/purchase-orders', finalData);
+        message.success('구매주문이 생성되었습니다');
+      }
+
+      console.log('구매주문 저장 응답:', response.data)
       setModalVisible(false)
       form.resetFields()
       setReceiptFileList([])
+      setEditingPO(null)
       fetchOrders()
     } catch (error: any) {
-      console.error('구매주문 생성 오류 상세:', {
+      console.error('구매주문 저장 오류 상세:', {
         error,
         response: error.response,
         status: error.response?.status,
         data: error.response?.data,
         message: error.message,
       })
-      
+
       if (error.response?.status === 403) {
-        message.error('구매주문 생성 권한이 없습니다. 관리자 또는 매니저 권한이 필요합니다.')
+        message.error('권한이 없습니다.')
       } else if (error.response?.status === 401) {
         message.error('인증이 필요합니다. 다시 로그인해주세요.')
       } else if (error.response?.data?.errors) {
@@ -433,7 +488,7 @@ const PurchaseOrders = () => {
       } else if (error.message) {
         message.error(error.message)
       } else {
-        message.error('구매주문 생성에 실패했습니다: ' + (error.message || '알 수 없는 오류'))
+        message.error('작업에 실패했습니다: ' + (error.message || '알 수 없는 오류'))
       }
     }
   }
@@ -470,6 +525,24 @@ const PurchaseOrders = () => {
     } catch (error: any) {
       message.error(error.response?.data?.message || '승인에 실패했습니다')
     }
+  }
+
+  const handleCancel = (po: PurchaseOrder) => {
+    Modal.confirm({
+      title: '구매주문 취소',
+      content: '정말로 이 구매주문을 취소하시겠습니까? 취소 후 다시 수정하여 재사용할 수 있습니다.',
+      okText: '예, 취소합니다',
+      cancelText: '아니오',
+      onOk: async () => {
+        try {
+          await api.put(`/purchase-orders/${po._id}/cancel`)
+          message.success('구매주문이 취소되었습니다')
+          fetchOrders()
+        } catch (error: any) {
+          message.error(error.response?.data?.message || '취소에 실패했습니다')
+        }
+      }
+    })
   }
 
   const columns: ColumnsType<PurchaseOrder> = [
@@ -532,10 +605,21 @@ const PurchaseOrders = () => {
       width: 150,
       render: (_, record: PurchaseOrder) => {
         const isDraft = record.status === 'draft'
+        const isCancelled = record.status === 'cancelled'
         const canApprovePO = isDraft && canApprove
+        const canCancel = ['sent', 'confirmed', 'partial'].includes(record.status)
 
         return (
           <Space>
+            {(isDraft || isCancelled) && (
+              <Button
+                type="link"
+                icon={<EditOutlined />}
+                onClick={() => handleEdit(record)}
+              >
+                수정
+              </Button>
+            )}
             {canApprovePO && (
               <Button
                 type="link"
@@ -545,11 +629,51 @@ const PurchaseOrders = () => {
                 승인
               </Button>
             )}
+            {canCancel && (
+              <Button
+                type="link"
+                danger
+                icon={<MinusCircleOutlined />}
+                onClick={() => handleCancel(record)}
+              >
+                취소
+              </Button>
+            )}
+            <Button
+              type="link"
+              icon={<PrinterOutlined />}
+              onClick={() => handleDirectPrint(record._id)}
+            >
+              인쇄
+            </Button>
           </Space>
         )
       },
     },
   ]
+
+  const handleDirectPrint = (poId: string) => {
+    // Use the new standalone print route
+    const printUrl = `/print/purchase-orders/${poId}`
+
+    // Always remove existing iframe to force full reload
+    const existingIframe = document.getElementById('po-print-iframe')
+    if (existingIframe) {
+      document.body.removeChild(existingIframe)
+    }
+
+    const iframe = document.createElement('iframe')
+    iframe.id = 'po-print-iframe'
+    iframe.style.position = 'fixed'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = '0'
+    iframe.style.left = '-9999px' // Hide off-screen
+    document.body.appendChild(iframe)
+
+    // Set src to trigger load
+    iframe.src = printUrl
+  }
 
   const handleFilterReset = () => {
     setFilterStatus(undefined)
@@ -572,7 +696,7 @@ const PurchaseOrders = () => {
             <FilterOutlined />
             <span style={{ fontWeight: 500 }}>필터:</span>
           </div>
-          
+
           <Select
             placeholder="상태"
             allowClear
@@ -601,8 +725,8 @@ const PurchaseOrders = () => {
             }
           >
             {locations.map((location) => (
-              <Select.Option 
-                key={location._id} 
+              <Select.Option
+                key={location._id}
                 value={location._id}
                 label={`${location.code} - ${location.name}`}
               >
@@ -650,10 +774,10 @@ const PurchaseOrders = () => {
       >
         <Form form={form} onFinish={handleSubmit} layout="vertical">
           <Form.Item name="purchaseRequest" label="구매요청 선택 (선택사항)">
-            <Select 
-              placeholder={purchaseRequests.length > 0 ? "구매요청을 선택하면 구매 항목이 자동으로 불러와집니다" : "사용 가능한 구매요청이 없습니다"} 
-              allowClear 
-              showSearch 
+            <Select
+              placeholder={purchaseRequests.length > 0 ? "구매요청을 선택하면 구매 항목이 자동으로 불러와집니다" : "사용 가능한 구매요청이 없습니다"}
+              allowClear
+              showSearch
               optionFilterProp="children"
               onChange={handlePRSelect}
               style={{ width: '100%' }}
@@ -666,8 +790,8 @@ const PurchaseOrders = () => {
               ))}
             </Select>
             <div style={{ marginTop: 4, fontSize: 12, color: '#999' }}>
-              {purchaseRequests.length > 0 
-                ? '구매요청을 선택하면 모든 구매 항목이 자동으로 불러와집니다' 
+              {purchaseRequests.length > 0
+                ? '구매요청을 선택하면 모든 구매 항목이 자동으로 불러와집니다'
                 : '먼저 구매요청을 작성하고 승인해야 합니다'}
             </div>
           </Form.Item>
@@ -858,12 +982,12 @@ const PurchaseOrders = () => {
                   ))}
                 </Select>
                 <div style={{ marginTop: 4, fontSize: 12, color: '#999' }}>
-                  {shippingAddresses.length > 0 
-                    ? '등록된 배송지를 선택하거나 아래에서 직접 입력할 수 있습니다' 
+                  {shippingAddresses.length > 0
+                    ? '등록된 배송지를 선택하거나 아래에서 직접 입력할 수 있습니다'
                     : '배송지 관리 메뉴에서 배송지를 등록하세요'}
                 </div>
               </Form.Item>
-              
+
               <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
                 <div style={{ marginBottom: 8, fontSize: 14, fontWeight: 500 }}>또는 직접 입력</div>
                 <Form.Item name={['shippingAddress', 'street']} style={{ marginBottom: 8 }}>

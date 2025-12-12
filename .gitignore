@@ -36,4 +36,10 @@ docker/mongo-init/
 *.log
 
 node_modules
-node_modules
+
+# Temporary Fix Scripts
+backend/fix_env.js
+backend/fix_ap.js
+backend/verify_ap.js
+backend/diagnose_*.js
+*.log

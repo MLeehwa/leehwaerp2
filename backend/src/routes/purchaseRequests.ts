@@ -109,12 +109,12 @@ router.put('/:id', authenticate, async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ message: '수정 권한이 없습니다.' });
     }
 
-    if (pr.status !== 'draft') {
-      return res.status(400).json({ message: '제출된 구매요청은 수정할 수 없습니다.' });
+    if (pr.status === 'converted') {
+      return res.status(400).json({ message: '이미 PO로 변환된 구매요청은 수정할 수 없습니다.' });
     }
 
     // Update fields
-    const allowedUpdates = ['items', 'priority', 'department', 'requiredDate', 'reason', 'notes', 'project', 'company', 'locationId'];
+    const allowedUpdates = ['items', 'priority', 'department', 'requiredDate', 'estimatedDeliveryDate', 'reason', 'notes', 'project', 'company', 'locationId'];
     allowedUpdates.forEach((update) => {
       if (req.body[update] !== undefined) {
         (pr as any)[update] = req.body[update];
@@ -180,8 +180,8 @@ router.post(
         return res.status(404).json({ message: '구매요청을 찾을 수 없습니다.' });
       }
 
-      if (pr.status !== 'submitted') {
-        return res.status(400).json({ message: '제출된 구매요청만 승인/거부할 수 있습니다.' });
+      if (pr.status !== 'submitted' && pr.status !== 'draft') {
+        return res.status(400).json({ message: '제출되거나 초안 상태인 구매요청만 승인/거부할 수 있습니다.' });
       }
 
       if (action === 'approve') {
@@ -204,7 +204,7 @@ router.post(
 // 구매요청을 구매주문으로 변환
 router.post('/:id/convert-to-po', authenticate, authorize('admin', 'manager'), async (req: AuthRequest, res: Response) => {
   try {
-    const { supplier, paymentTerms, expectedDeliveryDate, items } = req.body;
+    const { supplier, paymentTerms, paymentMethod, orderDate, expectedDeliveryDate, items, tax, shippingCost, discount, notes } = req.body;
     const pr = await PurchaseRequest.findById(req.params.id);
 
     if (!pr) {
@@ -219,6 +219,28 @@ router.post('/:id/convert-to-po', authenticate, authorize('admin', 'manager'), a
       return res.status(400).json({ message: '공급업체를 선택해야 합니다.' });
     }
 
+    // Supply validation: ID or Name
+    let supplierId = supplier;
+    if (!mongoose.Types.ObjectId.isValid(supplier)) {
+      // If not ObjectId, try to find by name
+      const supplierDoc = await mongoose.model('Supplier').findOne({ name: supplier });
+      if (supplierDoc) {
+        supplierId = supplierDoc._id;
+      } else {
+        // Auto-create supplier if not found
+        const count = await mongoose.model('Supplier').countDocuments();
+        const newSupplierCode = `S${String(count + 1).padStart(3, '0')}`;
+
+        const newSupplier = await mongoose.model('Supplier').create({
+          name: supplier,
+          supplierCode: newSupplierCode,
+          isActive: true,
+        });
+        supplierId = newSupplier._id;
+        // return res.status(400).json({ message: `공급업체 '${supplier}'를 찾을 수 없습니다.` });
+      }
+    }
+
     // items가 제공되면 사용하고, 없으면 PR의 items 사용 (금액 조정 가능)
     const poItems = items && items.length > 0
       ? items.map((item: any) => ({
@@ -228,6 +250,7 @@ router.post('/:id/convert-to-po', authenticate, authorize('admin', 'manager'), a
         unitPrice: item.unitPrice || 0,
         total: item.total || (item.unitPrice || 0) * item.quantity,
         categoryCode: item.categoryCode,
+        websiteUrl: item.websiteUrl, // URL 추가
       }))
       : pr.items.map((item: any) => ({
         product: item.product,
@@ -236,30 +259,34 @@ router.post('/:id/convert-to-po', authenticate, authorize('admin', 'manager'), a
         unitPrice: item.unitPrice || 0,
         total: item.estimatedTotal || (item.unitPrice || 0) * item.quantity,
         categoryCode: item.categoryCode,
+        websiteUrl: item.websiteUrl,
       }));
 
     // 총액 계산 (items가 제공된 경우 조정된 금액 사용)
-    const subtotal = items && items.length > 0
-      ? poItems.reduce((sum: number, item: any) => sum + (item.total || 0), 0)
-      : pr.totalAmount;
+    const itemsSubtotal = poItems.reduce((sum: number, item: any) => sum + (item.total || 0), 0);
+
+    // 최종 Total 계산
+    const calculatedTotal = itemsSubtotal + (Number(tax) || 0) + (Number(shippingCost) || 0) - (Number(discount) || 0);
 
     // Create PO using Model
     const po = new PurchaseOrder({
       // poNumber handled by pre-save
-      supplier,
+      supplier: supplierId,
       purchaseRequest: pr._id,
       items: poItems,
-      subtotal,
-      tax: 0,
-      shippingCost: 0,
-      discount: 0,
-      total: subtotal,
+      subtotal: itemsSubtotal,
+      tax: Number(tax) || 0,
+      shippingCost: Number(shippingCost) || 0,
+      discount: Number(discount) || 0,
+      total: calculatedTotal,
       paymentTerms: paymentTerms || 'Net 30',
+      paymentMethod: paymentMethod,
       expectedDeliveryDate: expectedDeliveryDate || pr.requiredDate,
       createdBy: new mongoose.Types.ObjectId(req.userId),
       status: 'draft',
-      orderDate: new Date(),
+      orderDate: orderDate ? new Date(orderDate) : new Date(),
       currency: 'USD',
+      notes: notes,
     });
 
     await po.save();
@@ -267,6 +294,9 @@ router.post('/:id/convert-to-po', authenticate, authorize('admin', 'manager'), a
     // PR 상태 업데이트
     pr.status = 'converted';
     pr.convertedToPO = po._id as any;
+    if (expectedDeliveryDate) {
+      pr.estimatedDeliveryDate = expectedDeliveryDate;
+    }
     await pr.save();
 
     await po.populate('supplier', 'name email phone');
@@ -280,6 +310,12 @@ router.post('/:id/convert-to-po', authenticate, authorize('admin', 'manager'), a
 });
 
 // 기존 구매 이력에서 MODEL NO로 검색 (스펙 자동완성용)
+// Helper to escape regex special characters
+function escapeRegExp(string: string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
+}
+
+// 기존 구매 이력에서 MODEL NO로 검색 (스펙 자동완성용)
 router.get('/search/items', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { modelNo, description, supplier } = req.query;
@@ -290,9 +326,9 @@ router.get('/search/items', authenticate, async (req: AuthRequest, res: Response
 
     const results: any[] = [];
 
-    // Build Regex
-    const modelRegex = modelNo ? new RegExp(modelNo as string, 'i') : null;
-    const descRegex = description ? new RegExp(description as string, 'i') : null;
+    // Build Regex safely
+    const modelRegex = modelNo ? new RegExp(escapeRegExp(modelNo as string), 'i') : null;
+    const descRegex = description ? new RegExp(escapeRegExp(description as string), 'i') : null;
 
     // 1. Search in PurchaseRequests
     const prQuery: any = {};
@@ -301,6 +337,7 @@ router.get('/search/items', authenticate, async (req: AuthRequest, res: Response
     const prs = await PurchaseRequest.find(prQuery).sort({ createdAt: -1 }).limit(100);
 
     for (const pr of prs) {
+      if (!pr.items || !Array.isArray(pr.items)) continue;
       for (const item of pr.items) {
         const matchModel = modelRegex ? modelRegex.test(item.modelNo || '') : false;
         const matchDesc = descRegex ? descRegex.test(item.description || '') : false;
@@ -336,6 +373,7 @@ router.get('/search/items', authenticate, async (req: AuthRequest, res: Response
     const pos = await PurchaseOrder.find(poQuery).sort({ orderDate: -1 }).limit(100);
 
     for (const po of pos) {
+      if (!po.items || !Array.isArray(po.items)) continue;
       for (const item of po.items) {
         const matchModel = modelRegex ? modelRegex.test(item.modelNo || '') : false;
         const matchDesc = descRegex ? descRegex.test(item.description || '') : false;
@@ -364,6 +402,7 @@ router.get('/search/items', authenticate, async (req: AuthRequest, res: Response
 
     res.json(results.slice(0, 20));
   } catch (error: any) {
+    console.error('Search Items Error:', error); // Add logging
     res.status(500).json({ message: error.message });
   }
 });

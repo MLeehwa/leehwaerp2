@@ -62,7 +62,7 @@ const Users = () => {
   const fetchUsers = async () => {
     setLoading(true)
     try {
-      const response = await api.get('/users')
+      const response = await api.get('/users?isActive=true')
       setUsers(response.data || [])
     } catch (error: any) {
       if (error.response?.status === 403) {
@@ -91,10 +91,10 @@ const Users = () => {
 
   const handleEdit = (user: User) => {
     // roles가 객체 배열이면 _id만 추출
-    const roleIds = user.roles 
+    const roleIds = user.roles
       ? user.roles.map((r: any) => typeof r === 'string' ? r : r._id)
       : []
-    
+
     form.setFieldsValue({
       ...user,
       roles: roleIds,
@@ -130,7 +130,7 @@ const Users = () => {
     } catch (error: any) {
       console.error('사용자 저장 오류:', error)
       const errorMessage = error.response?.data?.message || '사용자 저장에 실패했습니다'
-      
+
       // MongoDB 연결 오류인 경우
       if (error.response?.status === 503 || error.response?.data?.error === 'DATABASE_CONNECTION_ERROR') {
         message.error('데이터베이스에 연결할 수 없습니다. MongoDB가 실행 중인지 확인하세요.')

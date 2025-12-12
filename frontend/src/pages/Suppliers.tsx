@@ -51,7 +51,7 @@ const Suppliers = () => {
   const [modalVisible, setModalVisible] = useState(false)
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null)
   const [filterCategory, setFilterCategory] = useState<string | undefined>(undefined)
-  const [filterActive, setFilterActive] = useState<string | undefined>(undefined)
+  const [filterActive, setFilterActive] = useState<string | undefined>('true')
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const [form] = Form.useForm()
@@ -107,7 +107,7 @@ const Suppliers = () => {
         currency: supplier.bankInfo.currency || '',
       } : undefined,
     })
-    
+
     // 첨부파일 목록 설정
     if (supplier.attachments && supplier.attachments.length > 0) {
       const files: UploadFile[] = supplier.attachments.map((att, index) => ({
@@ -120,7 +120,7 @@ const Suppliers = () => {
     } else {
       setFileList([])
     }
-    
+
     setEditingSupplier(supplier)
     setModalVisible(true)
   }
@@ -140,11 +140,11 @@ const Suppliers = () => {
       const submitData = {
         ...values,
         isActive: values.isActive !== undefined ? values.isActive : true,
-        address: values.address && Object.values(values.address).some((v: any) => v) 
-          ? values.address 
+        address: values.address && Object.values(values.address).some((v: any) => v)
+          ? values.address
           : undefined,
-        bankInfo: values.bankInfo && Object.values(values.bankInfo).some((v: any) => v) 
-          ? values.bankInfo 
+        bankInfo: values.bankInfo && Object.values(values.bankInfo).some((v: any) => v)
+          ? values.bankInfo
           : undefined,
       }
 
@@ -422,13 +422,13 @@ const Suppliers = () => {
             label="공급업체 코드"
             tooltip={editingSupplier ? "코드를 수정할 수 있습니다 (예: A001, B001)" : "카테고리 선택 시 자동 생성되거나 수동으로 입력하세요 (예: A001, B001)"}
             rules={[
-              { 
-                pattern: /^[A-Z]\d{3}$/, 
-                message: '코드 형식이 올바르지 않습니다. (예: A001, B001)' 
+              {
+                pattern: /^[A-Z]\d{3}$/,
+                message: '코드 형식이 올바르지 않습니다. (예: A001, B001)'
               }
             ]}
           >
-            <Input 
+            <Input
               placeholder={editingSupplier ? "A001" : "카테고리 선택 시 자동 생성 또는 수동 입력"}
               style={{ textTransform: 'uppercase' }}
               onChange={(e) => {
@@ -581,7 +581,7 @@ const Suppliers = () => {
               onChange={handleFileChange}
               onRemove={handleFileRemove}
               beforeUpload={(file) => {
-                ;(file as any).fileType = 'OTHER'
+                ; (file as any).fileType = 'OTHER'
                 return false // 자동 업로드 방지
               }}
               multiple
@@ -605,7 +605,7 @@ const Suppliers = () => {
                           status: 'done',
                           originFileObj: file,
                         } as any
-                        ;(uploadFile as any).fileType = 'VOID_CHECK'
+                          ; (uploadFile as any).fileType = 'VOID_CHECK'
                         setFileList([...fileList, uploadFile])
                       }
                     }
@@ -628,7 +628,7 @@ const Suppliers = () => {
                           status: 'done',
                           originFileObj: file,
                         } as any
-                        ;(uploadFile as any).fileType = 'W9'
+                          ; (uploadFile as any).fileType = 'W9'
                         setFileList([...fileList, uploadFile])
                       }
                     }
@@ -651,7 +651,7 @@ const Suppliers = () => {
                           status: 'done',
                           originFileObj: file,
                         } as any
-                        ;(uploadFile as any).fileType = 'BANK_LETTER'
+                          ; (uploadFile as any).fileType = 'BANK_LETTER'
                         setFileList([...fileList, uploadFile])
                       }
                     }
@@ -688,8 +688,8 @@ const Suppliers = () => {
                         <Space>
                           <Tag>
                             {attachment.fileType === 'VOID_CHECK' ? 'VOID CHECK' :
-                             attachment.fileType === 'W9' ? 'W-9' :
-                             attachment.fileType === 'BANK_LETTER' ? 'BANK LETTER' : '기타'}
+                              attachment.fileType === 'W9' ? 'W-9' :
+                                attachment.fileType === 'BANK_LETTER' ? 'BANK LETTER' : '기타'}
                           </Tag>
                           {attachment.fileSize && `크기: ${(attachment.fileSize / 1024).toFixed(2)} KB`}
                         </Space>

@@ -105,7 +105,7 @@ const AccountsPayable = () => {
         params.startDueDate = filterDueDateRange[0].startOf('day').toISOString()
         params.endDueDate = filterDueDateRange[1].endOf('day').toISOString()
       }
-      
+
       const response = await api.get('/accounts-payable', { params })
       setPayables(response.data || [])
     } catch (error) {
@@ -184,6 +184,13 @@ const AccountsPayable = () => {
     }
   }
 
+
+  const [invoiceFileList, setInvoiceFileList] = useState<UploadFile[]>([])
+
+  const handleInvoiceFileChange = ({ fileList: newFileList }: { fileList: UploadFile[] }) => {
+    setInvoiceFileList(newFileList)
+  }
+
   const handleInvoiceUpdate = async (values: any) => {
     if (!selectedAP) return
 
@@ -192,10 +199,21 @@ const AccountsPayable = () => {
       if (values.invoiceNumber) updateData.invoiceNumber = values.invoiceNumber
       if (values.invoiceDate) updateData.invoiceDate = values.invoiceDate.toDate().toISOString()
 
+      // 첨부파일 처리
+      if (invoiceFileList.length > 0) {
+        updateData.attachments = invoiceFileList.map(file => ({
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          // url: file.url // If actual upload logic existed
+        }));
+      }
+
       await api.put(`/accounts-payable/${selectedAP._id}`, updateData)
       message.success('인보이스 정보가 업데이트되었습니다')
       setInvoiceModalVisible(false)
       invoiceForm.resetFields()
+      setInvoiceFileList([]) // Reset files
       fetchPayables()
       if (detailModalVisible) {
         fetchAPDetail(selectedAP._id)
@@ -208,12 +226,54 @@ const AccountsPayable = () => {
   const handleEditInvoice = (ap: AccountsPayable) => {
     setSelectedAP(ap)
     invoiceForm.resetFields()
+    setInvoiceFileList([]) // Clear previous files
     invoiceForm.setFieldsValue({
       invoiceNumber: ap.invoiceNumber || '',
       invoiceDate: ap.invoiceDate ? dayjs(ap.invoiceDate) : undefined,
     })
+    // If existing attachments, load them? (Optional, but good UX)
+    // For now, simple implementation
     setInvoiceModalVisible(true)
   }
+
+  // ... inside generic render ...
+
+  {/* 인보이스 등록/수정 모달 */ }
+  <Modal
+    title={`인보이스 등록/수정 - ${selectedAP?.apNumber}`}
+    open={invoiceModalVisible}
+    onCancel={() => {
+      setInvoiceModalVisible(false)
+      invoiceForm.resetFields()
+      setInvoiceFileList([])
+    }}
+    onOk={() => invoiceForm.submit()}
+    width={500}
+  >
+    <Form form={invoiceForm} onFinish={handleInvoiceUpdate} layout="vertical">
+      <Form.Item name="invoiceNumber" label="인보이스 번호">
+        <Input placeholder="인보이스 번호를 입력하세요" />
+      </Form.Item>
+
+      <Form.Item name="invoiceDate" label="인보이스 날짜">
+        <DatePicker style={{ width: '100%' }} />
+      </Form.Item>
+
+      <Form.Item label="영수증/인보이스 사진 첨부">
+        <Upload
+          fileList={invoiceFileList}
+          onChange={handleInvoiceFileChange}
+          beforeUpload={() => false} // Prevent auto upload
+          multiple
+        >
+          <Button icon={<UploadOutlined />}>파일 선택</Button>
+        </Upload>
+        <div style={{ marginTop: 8, fontSize: 12, color: '#999' }}>
+          영수증이나 인보이스 사진을 첨부하세요.
+        </div>
+      </Form.Item>
+    </Form>
+  </Modal>
 
   const getStatusColor = (status: string) => {
     const colorMap: Record<string, string> = {
@@ -345,17 +405,17 @@ const AccountsPayable = () => {
       key: 'action',
       render: (_, record: AccountsPayable) => (
         <Space>
-          <Button 
-            type="link" 
-            icon={<EyeOutlined />} 
+          <Button
+            type="link"
+            icon={<EyeOutlined />}
             onClick={() => fetchAPDetail(record._id)}
           >
             상세
           </Button>
           {record.paymentStatus !== 'paid' && (
-            <Button 
-              type="primary" 
-              icon={<DollarOutlined />} 
+            <Button
+              type="primary"
+              icon={<DollarOutlined />}
               onClick={() => handlePayment(record)}
             >
               지급
@@ -385,7 +445,7 @@ const AccountsPayable = () => {
             <FilterOutlined />
             <span style={{ fontWeight: 500 }}>필터:</span>
           </div>
-          
+
           <Select
             placeholder="상태"
             allowClear
@@ -425,8 +485,8 @@ const AccountsPayable = () => {
             }
           >
             {locations.map((location) => (
-              <Select.Option 
-                key={location._id} 
+              <Select.Option
+                key={location._id}
                 value={location._id}
                 label={`${location.code} - ${location.name}`}
               >
@@ -448,8 +508,19 @@ const AccountsPayable = () => {
             format="YYYY-MM-DD"
           />
 
+
           <Button onClick={handleFilterReset}>
             필터 초기화
+          </Button>
+
+          <Button danger onClick={async () => {
+            try {
+              const res = await api.post('/accounts-payable/debug/fix-data');
+              message.success(`복구 완료: 생성 ${res.data.created}, 수정 ${res.data.repaired}`);
+              fetchPayables();
+            } catch (e) { message.error('복구 실패'); }
+          }}>
+            데이터 강제 복구 (Debug)
           </Button>
         </div>
       </Card>
@@ -478,8 +549,8 @@ const AccountsPayable = () => {
             닫기
           </Button>,
           selectedAP && (
-            <Button 
-              key="invoice" 
+            <Button
+              key="invoice"
               icon={<FileTextOutlined />}
               onClick={() => {
                 setDetailModalVisible(false)
@@ -490,9 +561,9 @@ const AccountsPayable = () => {
             </Button>
           ),
           selectedAP && selectedAP.paymentStatus !== 'paid' && (
-            <Button 
-              key="pay" 
-              type="primary" 
+            <Button
+              key="pay"
+              type="primary"
               icon={<DollarOutlined />}
               onClick={() => {
                 setDetailModalVisible(false)
@@ -513,8 +584,8 @@ const AccountsPayable = () => {
                 <Tag color={getStatusColor(selectedAP.status)}>{getStatusText(selectedAP.status)}</Tag>
               </Descriptions.Item>
               <Descriptions.Item label="지급상태">
-                {selectedAP.paymentStatus === 'unpaid' ? '미지급' : 
-                 selectedAP.paymentStatus === 'partial' ? '부분지급' : '지급완료'}
+                {selectedAP.paymentStatus === 'unpaid' ? '미지급' :
+                  selectedAP.paymentStatus === 'partial' ? '부분지급' : '지급완료'}
               </Descriptions.Item>
               <Descriptions.Item label="공급업체">{selectedAP.supplierData?.name || '-'}</Descriptions.Item>
               <Descriptions.Item label="PO 번호">{selectedAP.purchaseOrderData?.poNumber || '-'}</Descriptions.Item>
@@ -558,11 +629,16 @@ const AccountsPayable = () => {
                     pagination={false}
                     style={{ marginTop: 16 }}
                     columns={[
-                      { title: '지급일', dataIndex: 'paymentDate', key: 'paymentDate', 
-                        render: (date: string) => new Date(date).toLocaleDateString('ko-KR') },
-                      { title: '금액', dataIndex: 'amount', key: 'amount', 
-                        render: (amount: number) => `$${amount?.toLocaleString()}` },
-                      { title: '지급 방법', dataIndex: 'paymentMethod', key: 'paymentMethod',
+                      {
+                        title: '지급일', dataIndex: 'paymentDate', key: 'paymentDate',
+                        render: (date: string) => new Date(date).toLocaleDateString('ko-KR')
+                      },
+                      {
+                        title: '금액', dataIndex: 'amount', key: 'amount',
+                        render: (amount: number) => `$${amount?.toLocaleString()}`
+                      },
+                      {
+                        title: '지급 방법', dataIndex: 'paymentMethod', key: 'paymentMethod',
                         render: (method: string) => {
                           const methodMap: Record<string, string> = {
                             cash: '현금',
@@ -571,7 +647,8 @@ const AccountsPayable = () => {
                             credit_card: '신용카드',
                           }
                           return methodMap[method] || method
-                        }},
+                        }
+                      },
                       { title: '참조번호', dataIndex: 'referenceNumber', key: 'referenceNumber' },
                       { title: '비고', dataIndex: 'notes', key: 'notes' },
                     ]}
@@ -692,6 +769,20 @@ const AccountsPayable = () => {
 
           <Form.Item name="invoiceDate" label="인보이스 날짜">
             <DatePicker style={{ width: '100%' }} />
+          </Form.Item>
+
+          <Form.Item label="영수증/인보이스 사진 첨부">
+            <Upload
+              fileList={invoiceFileList}
+              onChange={handleInvoiceFileChange}
+              beforeUpload={() => false} // Prevent auto upload
+              multiple
+            >
+              <Button icon={<UploadOutlined />}>파일 선택</Button>
+            </Upload>
+            <div style={{ marginTop: 8, fontSize: 12, color: '#999' }}>
+              영수증이나 인보이스 사진을 첨부하세요.
+            </div>
           </Form.Item>
         </Form>
       </Modal>

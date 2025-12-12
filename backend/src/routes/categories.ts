@@ -13,7 +13,7 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
     if (mongoose.connection.readyState !== 1) {
       return res.status(503).json({ message: '데이터베이스에 연결할 수 없습니다' });
     }
-    
+
     const { type, isActive, search } = req.query;
     let query: any = {};
 
@@ -45,7 +45,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
     if (mongoose.connection.readyState !== 1) {
       return res.status(503).json({ message: '데이터베이스에 연결할 수 없습니다' });
     }
-    
+
     const category = await Category.findById(req.params.id).populate('parentCategory');
     if (!category) {
       return res.status(404).json({ message: '카테고리를 찾을 수 없습니다.' });
@@ -62,7 +62,7 @@ router.get('/code/:code', authenticate, async (req: AuthRequest, res: Response) 
     if (mongoose.connection.readyState !== 1) {
       return res.status(503).json({ message: '데이터베이스에 연결할 수 없습니다' });
     }
-    
+
     const category = await Category.findOne({
       code: req.params.code.toUpperCase(),
       isActive: true,
@@ -98,7 +98,7 @@ router.post(
       if (mongoose.connection.readyState !== 1) {
         return res.status(503).json({ message: '데이터베이스에 연결할 수 없습니다' });
       }
-      
+
       const { code, ...rest } = req.body;
       const existing = await Category.findOne({ code: code.toUpperCase().trim() });
       if (existing) {
@@ -124,7 +124,7 @@ router.put('/:id', authenticate, authorize('admin', 'manager'), async (req: Auth
     if (mongoose.connection.readyState !== 1) {
       return res.status(503).json({ message: '데이터베이스에 연결할 수 없습니다' });
     }
-    
+
     const { code, ...updateData } = req.body;
     const update: any = { ...updateData };
 
@@ -153,13 +153,13 @@ router.delete('/:id', authenticate, authorize('admin'), async (req: AuthRequest,
     if (mongoose.connection.readyState !== 1) {
       return res.status(503).json({ message: '데이터베이스에 연결할 수 없습니다' });
     }
-    
-    const category = await Category.findByIdAndUpdate(req.params.id, { isActive: false }, { new: true });
+
+    const category = await Category.findByIdAndDelete(req.params.id);
     if (!category) {
       return res.status(404).json({ message: '카테고리를 찾을 수 없습니다.' });
     }
 
-    res.json({ message: '카테고리가 비활성화되었습니다.', category });
+    res.json({ message: '카테고리가 삭제되었습니다.', category });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
@@ -171,7 +171,7 @@ router.get('/stats/usage', authenticate, authorize('admin', 'manager'), async (r
     if (mongoose.connection.readyState !== 1) {
       return res.status(503).json({ message: '데이터베이스에 연결할 수 없습니다' });
     }
-    
+
     // 통계는 나중에 구현 (PurchaseRequest, PurchaseOrder 모델 필요)
     const categories = await Category.find({ isActive: true });
     const stats = categories.map((category) => ({
