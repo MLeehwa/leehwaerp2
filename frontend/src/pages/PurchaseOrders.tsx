@@ -649,9 +649,6 @@ const PurchaseOrders = () => {
   return (
     <div style={{ padding: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div style={{ background: '#ff0000', color: 'white', padding: '5px', fontWeight: 'bold' }}>
-          DEPLOYMENT DEBUG V3 - IF YOU SEE THIS, DEPLOY WAS SUCCESSFUL
-        </div>
         <h1>구매주문 (PO)</h1>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
           구매주문 작성
