@@ -615,7 +615,7 @@ const PurchaseOrders = () => {
         console.log('Action Render:', { id: record._id, status: record.status, isDraft, isCancelled, canApprovePO, canCancel })
 
         return (
-        return (
+
           <Space>
             {(isDraft || isCancelled) && (
               <Button type="link" onClick={() => handleEdit(record)}>
