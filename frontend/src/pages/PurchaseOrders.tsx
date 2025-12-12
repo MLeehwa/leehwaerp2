@@ -615,414 +615,399 @@ const PurchaseOrders = () => {
         console.log('Action Render:', { id: record._id, status: record.status, isDraft, isCancelled, canApprovePO, canCancel })
 
         return (
+        return (
           <Space>
             {(isDraft || isCancelled) && (
-              <Button
-                type="link"
-                icon={<EditOutlined />}
-                onClick={() => handleEdit(record)}
-              >
-                수정
+              <Button type="link" onClick={() => handleEdit(record)}>
+                <EditOutlined /> 수정
               </Button>
             )}
             {canApprovePO && (
-              <Button
-                type="link"
-                icon={<CheckOutlined />}
-                onClick={() => handleApprove(record)}
-              >
-                승인
+              <Button type="link" onClick={() => handleApprove(record)}>
+                <CheckOutlined /> 승인
               </Button>
             )}
             {canCancel && (
-              <Button
-                type="link"
-                danger
-                icon={<MinusCircleOutlined />}
-                onClick={() => handleCancel(record)}
-              >
-                취소
+              <Button type="link" danger onClick={() => handleCancel(record)}>
+                <MinusCircleOutlined /> 취소
               </Button>
             )}
-            <Button
-              type="link"
-              icon={<PrinterOutlined />}
-              onClick={() => handleDirectPrint(record._id)}
-            >
-              인쇄
+            <Button type="link" onClick={() => handleDirectPrint(record._id)}>
+              <PrinterOutlined /> 인쇄
             </Button>
           </Space>
+        )
         )
       },
     },
   ]
 
-  const handleDirectPrint = (poId: string) => {
-    // Use the new standalone print route
-    const printUrl = `/print/purchase-orders/${poId}`
+const handleDirectPrint = (poId: string) => {
+  // Use the new standalone print route
+  const printUrl = `/print/purchase-orders/${poId}`
 
-    // Always remove existing iframe to force full reload
-    const existingIframe = document.getElementById('po-print-iframe')
-    if (existingIframe) {
-      document.body.removeChild(existingIframe)
-    }
-
-    const iframe = document.createElement('iframe')
-    iframe.id = 'po-print-iframe'
-    iframe.style.position = 'fixed'
-    iframe.style.width = '0'
-    iframe.style.height = '0'
-    iframe.style.border = '0'
-    iframe.style.left = '-9999px' // Hide off-screen
-    document.body.appendChild(iframe)
-
-    // Set src to trigger load
-    iframe.src = printUrl
+  // Always remove existing iframe to force full reload
+  const existingIframe = document.getElementById('po-print-iframe')
+  if (existingIframe) {
+    document.body.removeChild(existingIframe)
   }
 
-  const handleFilterReset = () => {
-    setFilterStatus(undefined)
-    setFilterLocationId(undefined)
-    setFilterDateRange(null)
-  }
+  const iframe = document.createElement('iframe')
+  iframe.id = 'po-print-iframe'
+  iframe.style.position = 'fixed'
+  iframe.style.width = '0'
+  iframe.style.height = '0'
+  iframe.style.border = '0'
+  iframe.style.left = '-9999px' // Hide off-screen
+  document.body.appendChild(iframe)
 
-  return (
-    <div style={{ padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <h1>구매주문 (PO)</h1>
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
-          구매주문 작성
+  // Set src to trigger load
+  iframe.src = printUrl
+}
+
+const handleFilterReset = () => {
+  setFilterStatus(undefined)
+  setFilterLocationId(undefined)
+  setFilterDateRange(null)
+}
+
+return (
+  <div style={{ padding: 24 }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+      <h1>구매주문 (PO)</h1>
+      <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
+        구매주문 작성
+      </Button>
+    </div>
+
+    <Card style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <FilterOutlined />
+          <span style={{ fontWeight: 500 }}>필터:</span>
+        </div>
+
+        <Select
+          placeholder="상태"
+          allowClear
+          style={{ width: 150 }}
+          value={filterStatus}
+          onChange={setFilterStatus}
+        >
+          <Select.Option value="draft">초안</Select.Option>
+          <Select.Option value="sent">발송됨</Select.Option>
+          <Select.Option value="confirmed">확인됨</Select.Option>
+          <Select.Option value="partial">부분입고</Select.Option>
+          <Select.Option value="received">입고완료</Select.Option>
+          <Select.Option value="cancelled">취소됨</Select.Option>
+        </Select>
+
+        <Select
+          placeholder="구매 부서"
+          allowClear
+          showSearch
+          style={{ width: 200 }}
+          value={filterLocationId}
+          onChange={setFilterLocationId}
+          optionFilterProp="children"
+          filterOption={(input, option) =>
+            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+          }
+        >
+          {locations.map((location) => (
+            <Select.Option
+              key={location._id}
+              value={location._id}
+              label={`${location.code} - ${location.name}`}
+            >
+              {location.code} - {location.name}
+            </Select.Option>
+          ))}
+        </Select>
+
+        <RangePicker
+          placeholder={['시작일', '종료일']}
+          value={filterDateRange}
+          onChange={(dates) => {
+            if (dates && dates[0] && dates[1]) {
+              setFilterDateRange([dates[0], dates[1]])
+            } else {
+              setFilterDateRange(null)
+            }
+          }}
+          format="YYYY-MM-DD"
+        />
+
+        <Button onClick={handleFilterReset}>
+          필터 초기화
         </Button>
       </div>
+    </Card>
 
-      <Card style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <FilterOutlined />
-            <span style={{ fontWeight: 500 }}>필터:</span>
-          </div>
+    <Table
+      columns={columns}
+      dataSource={orders}
+      loading={loading}
+      rowKey="_id"
+      locale={{ emptyText: '구매주문이 없습니다' }}
+    />
 
+    <Modal
+      title="구매주문 작성"
+      open={modalVisible}
+      onCancel={() => {
+        setModalVisible(false)
+        form.resetFields()
+      }}
+      onOk={() => form.submit()}
+      width={900}
+    >
+      <Form form={form} onFinish={handleSubmit} layout="vertical">
+        <Form.Item name="purchaseRequest" label="구매요청 선택 (선택사항)">
           <Select
-            placeholder="상태"
-            allowClear
-            style={{ width: 150 }}
-            value={filterStatus}
-            onChange={setFilterStatus}
-          >
-            <Select.Option value="draft">초안</Select.Option>
-            <Select.Option value="sent">발송됨</Select.Option>
-            <Select.Option value="confirmed">확인됨</Select.Option>
-            <Select.Option value="partial">부분입고</Select.Option>
-            <Select.Option value="received">입고완료</Select.Option>
-            <Select.Option value="cancelled">취소됨</Select.Option>
-          </Select>
-
-          <Select
-            placeholder="구매 부서"
+            placeholder={purchaseRequests.length > 0 ? "구매요청을 선택하면 구매 항목이 자동으로 불러와집니다" : "사용 가능한 구매요청이 없습니다"}
             allowClear
             showSearch
-            style={{ width: 200 }}
-            value={filterLocationId}
-            onChange={setFilterLocationId}
             optionFilterProp="children"
-            filterOption={(input, option) =>
-              (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-            }
+            onChange={handlePRSelect}
+            style={{ width: '100%' }}
+            disabled={purchaseRequests.length === 0}
           >
-            {locations.map((location) => (
-              <Select.Option
-                key={location._id}
-                value={location._id}
-                label={`${location.code} - ${location.name}`}
-              >
-                {location.code} - {location.name}
+            {purchaseRequests.map((pr) => (
+              <Select.Option key={pr._id} value={pr._id}>
+                {pr.prNumber} - ${pr.totalAmount?.toLocaleString()} ({pr.status === 'approved' ? '승인됨' : '제출됨'})
               </Select.Option>
             ))}
           </Select>
+          <div style={{ marginTop: 4, fontSize: 12, color: '#999' }}>
+            {purchaseRequests.length > 0
+              ? '구매요청을 선택하면 모든 구매 항목이 자동으로 불러와집니다'
+              : '먼저 구매요청을 작성하고 승인해야 합니다'}
+          </div>
+        </Form.Item>
 
-          <RangePicker
-            placeholder={['시작일', '종료일']}
-            value={filterDateRange}
-            onChange={(dates) => {
-              if (dates && dates[0] && dates[1]) {
-                setFilterDateRange([dates[0], dates[1]])
-              } else {
-                setFilterDateRange(null)
-              }
-            }}
-            format="YYYY-MM-DD"
-          />
+        <Form.Item name="supplier" label="공급업체" rules={[{ required: true, message: '공급업체를 선택하세요' }]}>
+          <Select placeholder="공급업체를 선택하세요" showSearch optionFilterProp="children">
+            {suppliers.map((supplier) => (
+              <Select.Option key={supplier._id} value={supplier._id}>
+                {supplier.name} {supplier.email ? `(${supplier.email})` : ''}
+              </Select.Option>
+            ))}
+          </Select>
+        </Form.Item>
 
-          <Button onClick={handleFilterReset}>
-            필터 초기화
-          </Button>
-        </div>
-      </Card>
+        <Form.Item name="orderDate" label="주문일자">
+          <DatePicker style={{ width: '100%' }} />
+        </Form.Item>
 
-      <Table
-        columns={columns}
-        dataSource={orders}
-        loading={loading}
-        rowKey="_id"
-        locale={{ emptyText: '구매주문이 없습니다' }}
-      />
+        <Form.Item name="expectedDeliveryDate" label="예상 납기일">
+          <DatePicker style={{ width: '100%' }} />
+        </Form.Item>
 
-      <Modal
-        title="구매주문 작성"
-        open={modalVisible}
-        onCancel={() => {
-          setModalVisible(false)
-          form.resetFields()
-        }}
-        onOk={() => form.submit()}
-        width={900}
-      >
-        <Form form={form} onFinish={handleSubmit} layout="vertical">
-          <Form.Item name="purchaseRequest" label="구매요청 선택 (선택사항)">
-            <Select
-              placeholder={purchaseRequests.length > 0 ? "구매요청을 선택하면 구매 항목이 자동으로 불러와집니다" : "사용 가능한 구매요청이 없습니다"}
-              allowClear
-              showSearch
-              optionFilterProp="children"
-              onChange={handlePRSelect}
-              style={{ width: '100%' }}
-              disabled={purchaseRequests.length === 0}
-            >
-              {purchaseRequests.map((pr) => (
-                <Select.Option key={pr._id} value={pr._id}>
-                  {pr.prNumber} - ${pr.totalAmount?.toLocaleString()} ({pr.status === 'approved' ? '승인됨' : '제출됨'})
-                </Select.Option>
-              ))}
-            </Select>
-            <div style={{ marginTop: 4, fontSize: 12, color: '#999' }}>
-              {purchaseRequests.length > 0
-                ? '구매요청을 선택하면 모든 구매 항목이 자동으로 불러와집니다'
-                : '먼저 구매요청을 작성하고 승인해야 합니다'}
-            </div>
-          </Form.Item>
+        <Form.Item name="paymentTerms" label="결제 조건" initialValue="Net 30">
+          <Select>
+            <Select.Option value="Net 15">Net 15</Select.Option>
+            <Select.Option value="Net 30">Net 30</Select.Option>
+            <Select.Option value="Net 45">Net 45</Select.Option>
+            <Select.Option value="Net 60">Net 60</Select.Option>
+            <Select.Option value="Due on Receipt">Due on Receipt</Select.Option>
+          </Select>
+        </Form.Item>
 
-          <Form.Item name="supplier" label="공급업체" rules={[{ required: true, message: '공급업체를 선택하세요' }]}>
-            <Select placeholder="공급업체를 선택하세요" showSearch optionFilterProp="children">
-              {suppliers.map((supplier) => (
-                <Select.Option key={supplier._id} value={supplier._id}>
-                  {supplier.name} {supplier.email ? `(${supplier.email})` : ''}
-                </Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
+        <Form.Item name="paymentMethod" label="결제 방법">
+          <Select placeholder="결제 방법을 선택하세요">
+            <Select.Option value="bank_transfer">은행 계좌 이체</Select.Option>
+            <Select.Option value="credit_card">크레딧 카드</Select.Option>
+          </Select>
+          <div style={{ marginTop: 4, fontSize: 12, color: '#999' }}>
+            크레딧 카드 선택 시 입고 완료 후 자동으로 지급 완료 처리됩니다
+          </div>
+        </Form.Item>
 
-          <Form.Item name="orderDate" label="주문일자">
-            <DatePicker style={{ width: '100%' }} />
-          </Form.Item>
-
-          <Form.Item name="expectedDeliveryDate" label="예상 납기일">
-            <DatePicker style={{ width: '100%' }} />
-          </Form.Item>
-
-          <Form.Item name="paymentTerms" label="결제 조건" initialValue="Net 30">
-            <Select>
-              <Select.Option value="Net 15">Net 15</Select.Option>
-              <Select.Option value="Net 30">Net 30</Select.Option>
-              <Select.Option value="Net 45">Net 45</Select.Option>
-              <Select.Option value="Net 60">Net 60</Select.Option>
-              <Select.Option value="Due on Receipt">Due on Receipt</Select.Option>
-            </Select>
-          </Form.Item>
-
-          <Form.Item name="paymentMethod" label="결제 방법">
-            <Select placeholder="결제 방법을 선택하세요">
-              <Select.Option value="bank_transfer">은행 계좌 이체</Select.Option>
-              <Select.Option value="credit_card">크레딧 카드</Select.Option>
-            </Select>
-            <div style={{ marginTop: 4, fontSize: 12, color: '#999' }}>
-              크레딧 카드 선택 시 입고 완료 후 자동으로 지급 완료 처리됩니다
-            </div>
-          </Form.Item>
-
-          <Form.Item shouldUpdate={(prevValues, currentValues) => prevValues.paymentMethod !== currentValues.paymentMethod}>
-            {() => {
-              const paymentMethod = form.getFieldValue('paymentMethod')
-              return paymentMethod === 'credit_card' ? (
-                <Form.Item label="영수증 첨부 (필수)">
-                  <Upload
-                    fileList={receiptFileList}
-                    onChange={handleReceiptFileChange}
-                    beforeUpload={beforeUploadReceipt}
-                    multiple
-                  >
-                    <Button icon={<UploadOutlined />}>영수증 파일 선택</Button>
-                  </Upload>
-                  <div style={{ marginTop: 8, fontSize: 12, color: '#999' }}>
-                    최대 10MB까지 업로드 가능합니다. 여러 파일을 첨부할 수 있습니다.
-                  </div>
-                </Form.Item>
-              ) : null
-            }}
-          </Form.Item>
-
-          <Form.Item
-            label="구매 항목"
-            required
-          >
-            <Form.List name="items">
-              {(fields, { add, remove }) => (
-                <>
-                  {fields.map(({ key, name, ...restField }) => (
-                    <Space key={key} style={{ display: 'flex', marginBottom: 8 }} align="baseline">
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'description']}
-                        rules={[{ required: true, message: '항목 설명을 입력하세요' }]}
-                        style={{ width: 200 }}
-                      >
-                        <Input placeholder="항목 설명" />
-                      </Form.Item>
-
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'categoryCode']}
-                        style={{ width: 150 }}
-                      >
-                        <Select placeholder="카테고리" allowClear>
-                          {categories.map((cat) => (
-                            <Select.Option key={cat._id} value={cat.code}>
-                              {cat.code} - {cat.name}
-                            </Select.Option>
-                          ))}
-                        </Select>
-                      </Form.Item>
-
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'quantity']}
-                        rules={[{ required: true, message: '수량을 입력하세요' }]}
-                        style={{ width: 100 }}
-                      >
-                        <InputNumber min={1} placeholder="수량" style={{ width: '100%' }} />
-                      </Form.Item>
-
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'unitPrice']}
-                        rules={[{ required: true, message: '단가를 입력하세요' }]}
-                        style={{ width: 120 }}
-                      >
-                        <InputNumber
-                          min={0}
-                          placeholder="단가"
-                          prefix="$"
-                          style={{ width: '100%' }}
-                          onChange={(value) => {
-                            const quantity = form.getFieldValue(['items', name, 'quantity'])
-                            if (value && quantity) {
-                              const total = value * quantity
-                              form.setFieldValue(['items', name, 'total'], total)
-                            }
-                          }}
-                        />
-                      </Form.Item>
-
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'total']}
-                        style={{ width: 120 }}
-                      >
-                        <InputNumber
-                          min={0}
-                          placeholder="총액"
-                          prefix="$"
-                          style={{ width: '100%' }}
-                          readOnly
-                        />
-                      </Form.Item>
-
-                      <Button
-                        type="text"
-                        danger
-                        icon={<MinusCircleOutlined />}
-                        onClick={() => remove(name)}
-                      />
-                    </Space>
-                  ))}
-                  <Form.Item>
-                    <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
-                      항목 추가
-                    </Button>
-                  </Form.Item>
-                </>
-              )}
-            </Form.List>
-          </Form.Item>
-
-          <Form.Item label="추가 비용">
-            <Space style={{ width: '100%' }}>
-              <Form.Item name="tax" label="세금" style={{ width: 150, marginBottom: 0 }}>
-                <InputNumber min={0} prefix="$" placeholder="0" style={{ width: '100%' }} />
-              </Form.Item>
-              <Form.Item name="shippingCost" label="배송비" style={{ width: 150, marginBottom: 0 }}>
-                <InputNumber min={0} prefix="$" placeholder="0" style={{ width: '100%' }} />
-              </Form.Item>
-              <Form.Item name="discount" label="할인" style={{ width: 150, marginBottom: 0 }}>
-                <InputNumber min={0} prefix="$" placeholder="0" style={{ width: '100%' }} />
-              </Form.Item>
-            </Space>
-          </Form.Item>
-
-          <Form.Item label="배송 주소">
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <Form.Item name="selectedShippingAddress" label="등록된 배송지 선택">
-                <Select
-                  placeholder={shippingAddresses.length > 0 ? "배송지를 선택하면 주소가 자동으로 채워집니다" : "등록된 배송지가 없습니다"}
-                  allowClear
-                  showSearch
-                  optionFilterProp="children"
-                  onChange={handleShippingAddressSelect}
-                  style={{ width: '100%' }}
-                  disabled={shippingAddresses.length === 0}
+        <Form.Item shouldUpdate={(prevValues, currentValues) => prevValues.paymentMethod !== currentValues.paymentMethod}>
+          {() => {
+            const paymentMethod = form.getFieldValue('paymentMethod')
+            return paymentMethod === 'credit_card' ? (
+              <Form.Item label="영수증 첨부 (필수)">
+                <Upload
+                  fileList={receiptFileList}
+                  onChange={handleReceiptFileChange}
+                  beforeUpload={beforeUploadReceipt}
+                  multiple
                 >
-                  {shippingAddresses.map((addr) => (
-                    <Select.Option key={addr._id} value={addr._id}>
-                      {addr.name} {addr.isDefault ? '(기본)' : ''} - {addr.street}, {addr.city}, {addr.country}
-                    </Select.Option>
-                  ))}
-                </Select>
-                <div style={{ marginTop: 4, fontSize: 12, color: '#999' }}>
-                  {shippingAddresses.length > 0
-                    ? '등록된 배송지를 선택하거나 아래에서 직접 입력할 수 있습니다'
-                    : '배송지 관리 메뉴에서 배송지를 등록하세요'}
+                  <Button icon={<UploadOutlined />}>영수증 파일 선택</Button>
+                </Upload>
+                <div style={{ marginTop: 8, fontSize: 12, color: '#999' }}>
+                  최대 10MB까지 업로드 가능합니다. 여러 파일을 첨부할 수 있습니다.
                 </div>
               </Form.Item>
+            ) : null
+          }}
+        </Form.Item>
 
-              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
-                <div style={{ marginBottom: 8, fontSize: 14, fontWeight: 500 }}>또는 직접 입력</div>
-                <Form.Item name={['shippingAddress', 'street']} style={{ marginBottom: 8 }}>
-                  <Input placeholder="도로명 주소" />
+        <Form.Item
+          label="구매 항목"
+          required
+        >
+          <Form.List name="items">
+            {(fields, { add, remove }) => (
+              <>
+                {fields.map(({ key, name, ...restField }) => (
+                  <Space key={key} style={{ display: 'flex', marginBottom: 8 }} align="baseline">
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'description']}
+                      rules={[{ required: true, message: '항목 설명을 입력하세요' }]}
+                      style={{ width: 200 }}
+                    >
+                      <Input placeholder="항목 설명" />
+                    </Form.Item>
+
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'categoryCode']}
+                      style={{ width: 150 }}
+                    >
+                      <Select placeholder="카테고리" allowClear>
+                        {categories.map((cat) => (
+                          <Select.Option key={cat._id} value={cat.code}>
+                            {cat.code} - {cat.name}
+                          </Select.Option>
+                        ))}
+                      </Select>
+                    </Form.Item>
+
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'quantity']}
+                      rules={[{ required: true, message: '수량을 입력하세요' }]}
+                      style={{ width: 100 }}
+                    >
+                      <InputNumber min={1} placeholder="수량" style={{ width: '100%' }} />
+                    </Form.Item>
+
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'unitPrice']}
+                      rules={[{ required: true, message: '단가를 입력하세요' }]}
+                      style={{ width: 120 }}
+                    >
+                      <InputNumber
+                        min={0}
+                        placeholder="단가"
+                        prefix="$"
+                        style={{ width: '100%' }}
+                        onChange={(value) => {
+                          const quantity = form.getFieldValue(['items', name, 'quantity'])
+                          if (value && quantity) {
+                            const total = value * quantity
+                            form.setFieldValue(['items', name, 'total'], total)
+                          }
+                        }}
+                      />
+                    </Form.Item>
+
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'total']}
+                      style={{ width: 120 }}
+                    >
+                      <InputNumber
+                        min={0}
+                        placeholder="총액"
+                        prefix="$"
+                        style={{ width: '100%' }}
+                        readOnly
+                      />
+                    </Form.Item>
+
+                    <Button
+                      type="text"
+                      danger
+                      icon={<MinusCircleOutlined />}
+                      onClick={() => remove(name)}
+                    />
+                  </Space>
+                ))}
+                <Form.Item>
+                  <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
+                    항목 추가
+                  </Button>
                 </Form.Item>
-                <Space style={{ width: '100%' }}>
-                  <Form.Item name={['shippingAddress', 'city']} style={{ marginBottom: 0, width: 200 }}>
-                    <Input placeholder="도시" />
-                  </Form.Item>
-                  <Form.Item name={['shippingAddress', 'state']} style={{ marginBottom: 0, width: 150 }}>
-                    <Input placeholder="주/도" />
-                  </Form.Item>
-                  <Form.Item name={['shippingAddress', 'zipCode']} style={{ marginBottom: 0, width: 120 }}>
-                    <Input placeholder="우편번호" />
-                  </Form.Item>
-                  <Form.Item name={['shippingAddress', 'country']} style={{ marginBottom: 0, width: 150 }}>
-                    <Input placeholder="국가" />
-                  </Form.Item>
-                </Space>
-              </div>
-            </Space>
-          </Form.Item>
+              </>
+            )}
+          </Form.List>
+        </Form.Item>
 
-          <Form.Item name="notes" label="비고">
-            <Input.TextArea rows={3} placeholder="추가 메모를 입력하세요" />
-          </Form.Item>
-        </Form>
-      </Modal>
-    </div>
-  )
+        <Form.Item label="추가 비용">
+          <Space style={{ width: '100%' }}>
+            <Form.Item name="tax" label="세금" style={{ width: 150, marginBottom: 0 }}>
+              <InputNumber min={0} prefix="$" placeholder="0" style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="shippingCost" label="배송비" style={{ width: 150, marginBottom: 0 }}>
+              <InputNumber min={0} prefix="$" placeholder="0" style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="discount" label="할인" style={{ width: 150, marginBottom: 0 }}>
+              <InputNumber min={0} prefix="$" placeholder="0" style={{ width: '100%' }} />
+            </Form.Item>
+          </Space>
+        </Form.Item>
+
+        <Form.Item label="배송 주소">
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Form.Item name="selectedShippingAddress" label="등록된 배송지 선택">
+              <Select
+                placeholder={shippingAddresses.length > 0 ? "배송지를 선택하면 주소가 자동으로 채워집니다" : "등록된 배송지가 없습니다"}
+                allowClear
+                showSearch
+                optionFilterProp="children"
+                onChange={handleShippingAddressSelect}
+                style={{ width: '100%' }}
+                disabled={shippingAddresses.length === 0}
+              >
+                {shippingAddresses.map((addr) => (
+                  <Select.Option key={addr._id} value={addr._id}>
+                    {addr.name} {addr.isDefault ? '(기본)' : ''} - {addr.street}, {addr.city}, {addr.country}
+                  </Select.Option>
+                ))}
+              </Select>
+              <div style={{ marginTop: 4, fontSize: 12, color: '#999' }}>
+                {shippingAddresses.length > 0
+                  ? '등록된 배송지를 선택하거나 아래에서 직접 입력할 수 있습니다'
+                  : '배송지 관리 메뉴에서 배송지를 등록하세요'}
+              </div>
+            </Form.Item>
+
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
+              <div style={{ marginBottom: 8, fontSize: 14, fontWeight: 500 }}>또는 직접 입력</div>
+              <Form.Item name={['shippingAddress', 'street']} style={{ marginBottom: 8 }}>
+                <Input placeholder="도로명 주소" />
+              </Form.Item>
+              <Space style={{ width: '100%' }}>
+                <Form.Item name={['shippingAddress', 'city']} style={{ marginBottom: 0, width: 200 }}>
+                  <Input placeholder="도시" />
+                </Form.Item>
+                <Form.Item name={['shippingAddress', 'state']} style={{ marginBottom: 0, width: 150 }}>
+                  <Input placeholder="주/도" />
+                </Form.Item>
+                <Form.Item name={['shippingAddress', 'zipCode']} style={{ marginBottom: 0, width: 120 }}>
+                  <Input placeholder="우편번호" />
+                </Form.Item>
+                <Form.Item name={['shippingAddress', 'country']} style={{ marginBottom: 0, width: 150 }}>
+                  <Input placeholder="국가" />
+                </Form.Item>
+              </Space>
+            </div>
+          </Space>
+        </Form.Item>
+
+        <Form.Item name="notes" label="비고">
+          <Input.TextArea rows={3} placeholder="추가 메모를 입력하세요" />
+        </Form.Item>
+      </Form>
+    </Modal>
+  </div>
+)
 }
 
 export default PurchaseOrders
