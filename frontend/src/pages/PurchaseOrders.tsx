@@ -710,7 +710,7 @@ const PurchaseOrders = () => {
             onChange={setFilterLocationId}
             optionFilterProp="children"
             filterOption={(input, option) =>
-              (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              (option?.label as string ?? '').toLowerCase().includes(input.toLowerCase())
             }
           >
             {locations.map((location) => (
