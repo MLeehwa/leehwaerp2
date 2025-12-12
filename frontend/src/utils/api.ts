@@ -10,7 +10,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000, // 10초 타임아웃
+  timeout: 45000, // 45초 타임아웃 (Serverless Cold Start 대응)
 })
 
 // 요청 인터셉터
