@@ -607,11 +607,26 @@ const PurchaseOrders = () => {
       width: 150,
       render: (_, record: PurchaseOrder) => {
         return (
-          <div style={{ border: '1px solid blue', padding: '4px' }}>
-            DEBUG: {record.status}
-            <br />
-            <Button size="small" onClick={() => handleDirectPrint(record._id)}>인쇄</Button>
-          </div>
+          <Space>
+            {(isDraft || isCancelled) && (
+              <Button size="small" type="link" onClick={() => handleEdit(record)}>
+                <EditOutlined /> 수정
+              </Button>
+            )}
+            {canApprovePO && (
+              <Button size="small" type="link" onClick={() => handleApprove(record)}>
+                <CheckOutlined /> 승인
+              </Button>
+            )}
+            {canCancel && (
+              <Button size="small" type="link" danger onClick={() => handleCancel(record)}>
+                <MinusCircleOutlined /> 취소
+              </Button>
+            )}
+            <Button size="small" type="link" onClick={() => handleDirectPrint(record._id)}>
+              <PrinterOutlined /> 인쇄
+            </Button>
+          </Space>
         )
       },
     },
