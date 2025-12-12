@@ -1,13 +1,7 @@
 {
     "framework": "vite",
-    "rewrites": [
-        {
-            "source": "/api/(.*)",
-            "destination": "http://localhost:5500/api/$1"
-        },
-        {
-            "source": "/(.*)",
-            "destination": "/index.html"
-        }
-    ]
+    {
+        "source": "/(.*)",
+        "destination": "/index.html"
+    }
 }
