@@ -34,6 +34,7 @@ export const connectDB = async (): Promise<boolean> => {
       maxPoolSize: 1,
       serverSelectionTimeoutMS: 5000, // 빨리 실패하고 재시도하도록 5초로 단축
       socketTimeoutMS: 45000,
+      connectTimeoutMS: 5000, // 연결 시도 타임아웃 5초 (기본 30초 -> 5초)
       family: 4, // IPv4 강제 (일부 환경 연결 지연 방지)
     };
 

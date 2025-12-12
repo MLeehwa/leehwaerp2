@@ -996,6 +996,9 @@ const PurchaseOrders = () => {
           </Form.Item>
         </Form>
       </Modal>
+      <div style={{ marginTop: 20, textAlign: 'center', color: '#999', fontSize: '12px' }}>
+        System Version: 2025.12.12-Final-Fix | Environment: {process.env.NODE_ENV}
+      </div>
     </div>
   )
 }

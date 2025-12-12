@@ -1,18 +1,12 @@
 {
-    "version": 2,
-    "builds": [
+    "rewrites": [
         {
-            "src": "backend/src/server.mongodb.ts",
-            "use": "@vercel/node"
-        }
-    ],
-    "routes": [
+            "source": "/api/(.*)",
+            "destination": "/api/index"
+        },
         {
-            "src": "/(.*)",
-            "dest": "backend/src/server.mongodb.ts"
+            "source": "/(.*)",
+            "destination": "/index.html"
         }
-    ],
-    "env": {
-        "NODE_ENV": "production"
-    }
+    ]
 }
