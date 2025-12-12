@@ -617,24 +617,27 @@ const PurchaseOrders = () => {
         return (
 
           <Space>
-            {(isDraft || isCancelled) && (
-              <Button type="link" onClick={() => handleEdit(record)}>
-                <EditOutlined /> 수정
+            <Space>
+              <span style={{ color: 'red', fontSize: '10px' }}>ACT</span>
+              {(isDraft || isCancelled) && (
+                <Button size="small" onClick={() => handleEdit(record)}>
+                  수정
+                </Button>
+              )}
+              {canApprovePO && (
+                <Button size="small" type="primary" onClick={() => handleApprove(record)}>
+                  승인
+                </Button>
+              )}
+              {canCancel && (
+                <Button size="small" danger onClick={() => handleCancel(record)}>
+                  취소
+                </Button>
+              )}
+              <Button size="small" onClick={() => handleDirectPrint(record._id)}>
+                인쇄
               </Button>
-            )}
-            {canApprovePO && (
-              <Button type="link" onClick={() => handleApprove(record)}>
-                <CheckOutlined /> 승인
-              </Button>
-            )}
-            {canCancel && (
-              <Button type="link" danger onClick={() => handleCancel(record)}>
-                <MinusCircleOutlined /> 취소
-              </Button>
-            )}
-            <Button type="link" onClick={() => handleDirectPrint(record._id)}>
-              <PrinterOutlined /> 인쇄
-            </Button>
+            </Space>
           </Space>
         )
         )
