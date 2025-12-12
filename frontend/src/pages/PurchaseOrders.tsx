@@ -611,6 +611,9 @@ const PurchaseOrders = () => {
         const canApprovePO = isDraft && canApprove
         const canCancel = ['sent', 'confirmed', 'partial'].includes(record.status)
 
+        // 디버깅: Vercel에서 버튼이 안 보이는 원인 파악
+        console.log('Action Render:', { id: record._id, status: record.status, isDraft, isCancelled, canApprovePO, canCancel })
+
         return (
           <Space>
             {(isDraft || isCancelled) && (
