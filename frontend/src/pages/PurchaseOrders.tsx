@@ -606,36 +606,12 @@ const PurchaseOrders = () => {
       key: 'action',
       width: 150,
       render: (_, record: PurchaseOrder) => {
-        const isDraft = record.status === 'draft'
-        const isCancelled = record.status === 'cancelled'
-        const canApprovePO = isDraft && canApprove
-        const canCancel = ['sent', 'confirmed', 'partial'].includes(record.status)
-
-        // 디버깅: Vercel에서 버튼이 안 보이는 원인 파악
-        console.log('Action Render:', { id: record._id, status: record.status, isDraft, isCancelled, canApprovePO, canCancel })
-
         return (
-          <Space>
-            <span style={{ color: 'red', fontSize: '10px' }}>ACT</span>
-            {(isDraft || isCancelled) && (
-              <Button size="small" onClick={() => handleEdit(record)}>
-                수정
-              </Button>
-            )}
-            {canApprovePO && (
-              <Button size="small" type="primary" onClick={() => handleApprove(record)}>
-                승인
-              </Button>
-            )}
-            {canCancel && (
-              <Button size="small" danger onClick={() => handleCancel(record)}>
-                취소
-              </Button>
-            )}
-            <Button size="small" onClick={() => handleDirectPrint(record._id)}>
-              인쇄
-            </Button>
-          </Space>
+          <div style={{ border: '1px solid blue', padding: '4px' }}>
+            DEBUG: {record.status}
+            <br />
+            <Button size="small" onClick={() => handleDirectPrint(record._id)}>인쇄</Button>
+          </div>
         )
       },
     },
@@ -673,6 +649,9 @@ const PurchaseOrders = () => {
   return (
     <div style={{ padding: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div style={{ background: '#ff0000', color: 'white', padding: '5px', fontWeight: 'bold' }}>
+          DEPLOYMENT DEBUG V3 - IF YOU SEE THIS, DEPLOY WAS SUCCESSFUL
+        </div>
         <h1>구매주문 (PO)</h1>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
           구매주문 작성
