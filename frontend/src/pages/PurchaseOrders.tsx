@@ -158,7 +158,9 @@ const PurchaseOrders = () => {
       const response = await api.get('/purchase-orders', { params })
       setOrders(response.data || [])
     } catch (error: any) {
-      console.error('구매주문 목록 로드 오류:', error)
+      console.error('구매주문 목록 로드 오류 상세:', JSON.stringify(error, null, 2))
+      console.log('Error object keys:', Object.keys(error))
+      console.log('Error Type:', typeof error)
       message.error('구매주문 목록을 불러오는데 실패했습니다')
       setOrders([])
     } finally {

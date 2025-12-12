@@ -29,12 +29,12 @@ export const connectDB = async (): Promise<boolean> => {
 
   try {
     const options: mongoose.ConnectOptions = {
-      // Serverless 환경 최적화
-      maxPoolSize: 10,          // Lambda 하나당 연결 10개 (동시 요청 처리 능력을 위해 1 -> 10 상향)
-      serverSelectionTimeoutMS: 10000, // 5초 -> 10초 (연결 지연 허용)
-      socketTimeoutMS: 45000,   // 30초 -> 45초
-      connectTimeoutMS: 10000,  // 5초 -> 10초
-      bufferCommands: true,     // 연결 끊겨도 잠시 버퍼링 (즉시 에러 방지)
+      // Serverless 환경 최적화: Vercel Function은 개별적으로 실행되므로 PoolSize를 1로 제한해야 함
+      // (10으로 설정하면 함수 50개 실행 시 연결 500개가 되어 금방 DB가 죽음)
+      maxPoolSize: 1,
+      serverSelectionTimeoutMS: 5000, // 빨리 실패하고 재시도하도록 5초로 단축
+      socketTimeoutMS: 45000,
+      family: 4, // IPv4 강제 (일부 환경 연결 지연 방지)
     };
 
     console.log('🔄 MongoDB 새로운 연결 시도...');
