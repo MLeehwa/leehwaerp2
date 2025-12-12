@@ -606,6 +606,11 @@ const PurchaseOrders = () => {
       key: 'action',
       width: 150,
       render: (_, record: PurchaseOrder) => {
+        const isDraft = record.status === 'draft'
+        const isCancelled = record.status === 'cancelled'
+        const canApprovePO = isDraft && canApprove
+        const canCancel = ['sent', 'confirmed', 'partial'].includes(record.status)
+
         return (
           <Space>
             {(isDraft || isCancelled) && (
@@ -996,12 +1001,8 @@ const PurchaseOrders = () => {
           </Form.Item>
         </Form>
       </Modal>
-      <div style={{ marginTop: 20, textAlign: 'center', color: '#999', fontSize: '12px' }}>
-        System Version: 2025.12.12-Final-Fix | Environment: {process.env.NODE_ENV}
-      </div>
     </div>
   )
 }
 
 export default PurchaseOrders
-
